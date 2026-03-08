@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="1">
+
+    <title>Plugin</title>
+
+    <options customize="never"/>
+
+    <choices-outline>
+        <line choice="default"/>
+    </choices-outline>
+
+    <choice id="default" title="MyPlugin">
+        <pkg-ref id="com.example.myplugin"/>
+    </choice>
+
+    <pkg-ref id="com.example.myplugin">
+        PluginBundle.pkg
+    </pkg-ref>
+
+</installer-gui-script>
