@@ -9,9 +9,6 @@ echo "Preparing payload..."
 mkdir -p payload/Library/Audio/Plug-Ins/VST3/
 mkdir -p payload/Library/Audio/Plug-Ins/Components/
 
-cp -R plugin-binaries/Tremolo.vst3 payload/Library/Audio/Plug-Ins/VST3/
-cp -R plugin-binaries/Tremolo.component payload/Library/Audio/Plug-Ins/Components/
-
 BUILD_DIR="plugin-binaries"
 
 echo "Searching for VST3 plugins..."
