@@ -34,6 +34,17 @@ plugin-binaries/
 
 You can include one or both formats.
 
+### Change Plugin Version
+
+Edit the version in `build.sh`:
+```bash
+--version 0.0.1 \
+```
+
+### Change Installer Title
+
+Edit `distribution.xml`
+
 ### 2. Build the Installer
 
 Run the build script:
@@ -56,26 +67,6 @@ dist/YourPlugin-Installer.pkg
 
 ## Customization
 
-### Change Plugin Version
-
-Edit the version in `build.sh`:
-```bash
---version 0.0.1 \
-```
-
-### Change Installer Title
-
-Edit `distribution.xml`:
-```xml
-<title>Your Plugin Name</title>
-```
-
-### Change Package Identifier
-
-Edit `build.sh`:
-```bash
---identifier com.yourcompany.yourplugin \
-```
 
 
 ## Project Structure

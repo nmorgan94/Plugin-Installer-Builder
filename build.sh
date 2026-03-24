@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-rm -f dist/MyPlugin-Installer.pkg
+rm -f dist/*.pkg
 mkdir -p dist
 
 echo "Preparing payload..."
@@ -31,21 +31,25 @@ done
 
 echo "Building installer package..."
 
+IDENTIFIER=$(grep -o 'pkg-ref id="[^"]*"' distribution.xml | head -1 | sed 's/pkg-ref id="\(.*\)"/\1/')
+PKG_NAME=$(grep -A1 'pkg-ref id=' distribution.xml | tail -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+INSTALLER_NAME="${PKG_NAME%.pkg}-Installer.pkg"
+
 pkgbuild \
   --root payload \
-  --identifier com.example.pluginbundle \
+  --identifier $IDENTIFIER \
   --version 0.0.1 \
   --install-location / \
-  packages/PluginBundle.pkg
+  packages/$PKG_NAME
 
 echo "Creating final installer..."
 
 productbuild \
   --distribution distribution.xml \
   --package-path packages \
-  dist/MyPlugin-Installer.pkg
+  dist/$INSTALLER_NAME
 
-rm -f packages/PluginBundle.pkg
+rm -f packages/$PKG_NAME
 rm -rf payload/Library
 
-echo "Built dist/MyPlugin-Installer.pkg"
+echo "Built dist/$INSTALLER_NAME"
