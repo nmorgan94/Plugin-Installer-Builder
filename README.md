@@ -47,11 +47,23 @@ Edit `distribution.xml`
 
 ### 2. Build the Installer
 
-Run the build script:
+#### Unsigned Build (Development)
+
+For testing and development:
 
 ```bash
 ./build.sh
 ```
+
+#### Signed and Notarized Build (Distribution)
+
+For public distribution:
+
+```bash
+./build.sh --notarize
+```
+
+This will automatically sign AND notarize your installer for a professional, warning-free installation experience.
 
 ### 3. Find Your Installer
 
@@ -64,10 +76,86 @@ dist/YourPlugin-Installer.pkg
 ## Requirements
 
 - macOS with Xcode Command Line Tools installed
+- For signing and notarization: Apple Developer Program Account
 
-## Customization
+## Code Signing & Notarization
 
+### Why Notarize?
 
+| Build Type | Command | Use Case | User Experience |
+|------------|---------|----------|-----------------|
+| **Unsigned** | `./build.sh` | Development/testing | ⚠️ Gatekeeper blocks, requires manual override |
+| **Signed + Notarized** | `./build.sh --notarize` | Public distribution | ✅ No warnings, installs smoothly |
+
+### Setup
+
+#### 1. Get Apple Developer Certificates
+
+From [Apple Developer Portal](https://developer.apple.com/account):
+- Download **Developer ID Application** certificate (for plugins)
+- Download **Developer ID Installer** certificate (for packages)
+- Install both by double-clicking them
+
+Folow this [Documentation](https://developer.apple.com/help/account/certificates/create-developer-id-certificates) for help
+
+#### 2. Set Environment Variables
+
+```bash
+# Required for --notarize
+export SIGNING_IDENTITY_APP="Developer ID Application: Your Name (TEAMID)"
+export SIGNING_IDENTITY_INSTALLER="Developer ID Installer: Your Name (TEAMID)"
+export APPLE_ID="your@email.com"
+export APPLE_TEAM_ID="TEAMID"
+export APPLE_APP_PASSWORD="app-specific-password"
+```
+
+#### 3. Find Your Team ID
+
+```bash
+security find-identity
+```
+
+Look for your Developer ID certificates - the Team ID is in parentheses.
+
+#### 4. Create App-Specific Password (for notarization)
+
+1. Visit [appleid.apple.com](https://appleid.apple.com)
+2. Go to Security → App-Specific Passwords
+3. Generate a new password (name it "Notarization")
+4. Store securely in Keychain:
+
+```bash
+xcrun notarytool store-credentials "AC_PASSWORD" \
+  --apple-id "your@email.com" \
+  --team-id "TEAMID" \
+  --password "app-specific-password"
+
+# Then reference it:
+export APPLE_APP_PASSWORD="@keychain:AC_PASSWORD"
+```
+
+### Build Commands
+
+```bash
+# Development (unsigned)
+./build.sh
+
+# Distribution (signed and notarized)
+./build.sh --notarize
+```
+
+### Verify Your Build
+
+```bash
+# Check plugin signature
+codesign --verify --deep --verbose plugin-binaries/YourPlugin.vst3
+
+# Check package signature
+pkgutil --check-signature dist/YourPlugin-Installer-signed.pkg
+
+# Check notarization status
+spctl --assess --verbose --type install dist/YourPlugin-Installer-signed.pkg
+```
 
 ## Project Structure
 

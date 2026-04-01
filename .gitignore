@@ -6,3 +6,5 @@ dist/*
 packages/*
 payload/*
 plugin-binaries/*
+
+.env
