@@ -27,8 +27,10 @@ Output lands in `dist/`.
 no workaround. A `.dmg` is signed with the Developer ID *Application* certificate instead, and is
 still notarized, stapled and warning-free.
 
-Plugins install to `/Library/Audio/Plug-Ins/VST3/` and `/Library/Audio/Plug-Ins/Components/`. The
-`.dmg` contains aliases to both, so users drag the plugins across.
+Plugins install to `/Library/Audio/Plug-Ins/VST3/` and `/Library/Audio/Plug-Ins/Components/`.
+
+The `.dmg` contains the plugins plus an `Install <name>.app` that copies them into place after asking
+for an admin password.
 
 ## Signing Setup
 
@@ -87,9 +89,9 @@ ones it uses.
 ## Verify
 
 ```bash
-codesign --verify --strict --verbose=4 dist/"My Plugin.dmg"
-xcrun stapler validate dist/"My Plugin.dmg"
-spctl --assess -v --type open --context context:primary-signature dist/"My Plugin.dmg"
+codesign --verify --strict --verbose=4 dist/"My Plugin-Installer.dmg"
+xcrun stapler validate dist/"My Plugin-Installer.dmg"
+spctl --assess -v --type open --context context:primary-signature dist/"My Plugin-Installer.dmg"
 spctl --assess -v --type install dist/"My Plugin-Installer-signed.pkg"
 ```
 

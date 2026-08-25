@@ -1,5 +1,6 @@
 #!/bin/bash
-# Build a distribution .dmg from the staged payload. Prints its path.
+# Build a distribution .dmg from the staged payload, containing the plugins
+# and an installer app that copies them into place. Prints the .dmg path.
 # Env: PRODUCT_NAME, SIGNING_IDENTITY_APP   Flags: --sign ID | --no-sign
 
 set -euo pipefail
@@ -18,27 +19,37 @@ require_env PRODUCT_NAME
 
 [ -d "$PAYLOAD_DIR" ] || die "Payload not found. Run scripts/stage-payload.sh first."
 
-OUT_DMG="$DIST_DIR/${PRODUCT_NAME}.dmg"
+OUT_DMG="$DIST_DIR/${PRODUCT_NAME}-Installer.dmg"
 mkdir -p "$DIST_DIR"
 
 log "Preparing disk image contents..."
 rm -rf "$DMG_STAGING_DIR"
-mkdir -p "$DMG_STAGING_DIR"
+
+PLUGINS_DIR="$DMG_STAGING_DIR/$DMG_PLUGINS_DIR"
+mkdir -p "$PLUGINS_DIR"
 
 staged=0
 for bundle in "$PAYLOAD_VST3_DIR"/*.vst3 "$PAYLOAD_COMPONENTS_DIR"/*.component; do
     [ -d "$bundle" ] || continue
     log "Adding $(basename "$bundle")"
-    cp -R "$bundle" "$DMG_STAGING_DIR/"
+    cp -R "$bundle" "$PLUGINS_DIR/"
     staged=$((staged + 1))
 done
 [ "$staged" -gt 0 ] || die "No plugin bundles found in $PAYLOAD_DIR"
 
-# Aliases to the real install locations
-[ -n "$(find "$DMG_STAGING_DIR" -maxdepth 1 -name '*.vst3' -print -quit)" ] &&
-    ln -s "$VST3_INSTALL_DIR" "$DMG_STAGING_DIR/VST3 Folder"
-[ -n "$(find "$DMG_STAGING_DIR" -maxdepth 1 -name '*.component' -print -quit)" ] &&
-    ln -s "$COMPONENTS_INSTALL_DIR" "$DMG_STAGING_DIR/Components Folder"
+
+APP="$DMG_STAGING_DIR/Install $PRODUCT_NAME.app"
+
+log "Building installer app..."
+osacompile -o "$APP" "$REPO_ROOT/resources/installer.applescript" >&2
+INSTALL_SH="$(cat "$REPO_ROOT/resources/install.sh")"
+printf '%s\n' "${INSTALL_SH//@PLUGINS_DIR@/$DMG_PLUGINS_DIR}" > "$APP/Contents/Resources/install.sh"
+chmod +x "$APP/Contents/Resources/install.sh"
+
+if [ -n "$SIGN_IDENTITY" ]; then
+    log "Signing installer app..."
+    codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP" >&2
+fi
 
 log "Creating disk image..."
 hdiutil create -volname "$PRODUCT_NAME" -srcfolder "$DMG_STAGING_DIR" \
