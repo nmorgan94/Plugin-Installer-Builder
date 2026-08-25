@@ -1,8 +1,43 @@
 #!/bin/bash
-set -e
+# Build a distributable installer for the plugins in plugin-binaries/.
+#
+# Each stage lives in scripts/ and can be run on its own for debugging --
+# see ./build.sh --help.
+set -euo pipefail
 
-# Parse command line arguments
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
+
 NOTARIZE=false
+BUILD_PKG=false
+BUILD_DMG=false
+
+usage() {
+    echo "Usage: $0 (--pkg | --dmg) [--notarize]"
+    echo ""
+    echo "Exactly one of --pkg or --dmg is required."
+    echo ""
+    echo "Options:"
+    echo "  --pkg        Build a .pkg installer"
+    echo "  --dmg        Build a .dmg disk image"
+    echo "  --notarize   Sign and notarize the output (distribution)"
+    echo ""
+    echo "Configured by environment (see .env.example):"
+    echo "  PRODUCT_NAME  Installer title, and the artifact filename"
+    echo "  BUNDLE_ID     Package identifier"
+    echo "  VERSION       Package version"
+    echo ""
+    echo "A notarized .pkg needs a Developer ID Installer certificate."
+    echo "A notarized .dmg needs only a Developer ID Application certificate,"
+    echo "so use --dmg if the Installer certificate is unavailable."
+    echo ""
+    echo "Individual stages, runnable on their own after 'source .env':"
+    echo "  scripts/stage-payload.sh"
+    echo "  scripts/sign-plugins.sh"
+    echo "  scripts/build-pkg.sh"
+    echo "  scripts/build-dmg.sh"
+    echo "  scripts/notarize.sh <artifact>"
+}
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -10,179 +45,91 @@ while [[ $# -gt 0 ]]; do
             NOTARIZE=true
             shift
             ;;
+        --pkg)
+            BUILD_PKG=true
+            shift
+            ;;
+        --dmg)
+            BUILD_DMG=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
         *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [--notarize]"
-            echo ""
-            echo "Options:"
-            echo "  (no flags)   Build unsigned installer (development)"
-            echo "  --notarize   Build signed and notarized installer (distribution)"
+            echo "Unknown option: $1" >&2
+            usage >&2
             exit 1
             ;;
     esac
 done
 
-# Check for required environment variables if notarizing
+if [ "$BUILD_PKG" = true ] && [ "$BUILD_DMG" = true ]; then
+    echo "Error: --pkg and --dmg are mutually exclusive -- pick one." >&2
+    exit 1
+fi
+
+if [ "$BUILD_PKG" = false ] && [ "$BUILD_DMG" = false ]; then
+    echo "Error: no output format selected -- pass --pkg or --dmg." >&2
+    echo "" >&2
+    usage >&2
+    exit 1
+fi
+
+export VERSION PRODUCT_NAME BUNDLE_ID BUILD_DIR PAYLOAD_DIR PACKAGES_DIR DIST_DIR DMG_STAGING_DIR
+
+REQUIRED=(PRODUCT_NAME)
+
+if [ "$BUILD_PKG" = true ]; then
+    REQUIRED+=(BUNDLE_ID VERSION)
+fi
+
 if [ "$NOTARIZE" = true ]; then
-    if [ -z "$SIGNING_IDENTITY_APP" ]; then
-        echo "Error: SIGNING_IDENTITY_APP environment variable not set"
-        echo "Example: export SIGNING_IDENTITY_APP='Developer ID Application: Your Name'"
-        exit 1
+    REQUIRED+=(SIGNING_IDENTITY_APP)
+
+    if [ "$BUILD_PKG" = true ]; then
+        REQUIRED+=(SIGNING_IDENTITY_INSTALLER)
     fi
-    if [ -z "$SIGNING_IDENTITY_INSTALLER" ]; then
-        echo "Error: SIGNING_IDENTITY_INSTALLER environment variable not set"
-        echo "Example: export SIGNING_IDENTITY_INSTALLER='Developer ID Installer: Your Name'"
-        exit 1
-    fi
-    if [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_APP_PASSWORD" ]; then
-        echo "Error: Notarization requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_PASSWORD"
-        echo "Example:"
-        echo "  export APPLE_ID='your@email.com'"
-        echo "  export APPLE_TEAM_ID='TEAMID'"
-        echo "  export APPLE_APP_PASSWORD='@keychain:AC_PASSWORD'"
-        exit 1
+
+    if [ -z "${KEYCHAIN_PROFILE:-}" ]; then
+        REQUIRED+=(APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD)
     fi
 fi
 
-rm -f dist/*.pkg
-mkdir -p dist packages
+require_env "${REQUIRED[@]}"
 
-echo "Preparing payload..."
+"$SCRIPT_DIR/scripts/stage-payload.sh" >/dev/null
 
-mkdir -p payload/Library/Audio/Plug-Ins/VST3/
-mkdir -p payload/Library/Audio/Plug-Ins/Components/
-
-BUILD_DIR="plugin-binaries"
-
-echo "Searching for VST3 plugins..."
-
-for plugin in $BUILD_DIR/*.vst3; do
-    if [ -d "$plugin" ]; then
-        echo "Adding $(basename "$plugin")"
-        cp -R "$plugin" payload/Library/Audio/Plug-Ins/VST3/
-    fi
-done
-
-echo "Searching for AU plugins..."
-
-for plugin in $BUILD_DIR/*.component; do
-    if [ -d "$plugin" ]; then
-        echo "Adding $(basename "$plugin")"
-        cp -R "$plugin" payload/Library/Audio/Plug-Ins/Components/
-    fi
-done
-
-# Sign plugin binaries if notarizing
 if [ "$NOTARIZE" = true ]; then
-    echo "Signing plugin binaries..."
-    
-    # Sign VST3 plugins
-    for plugin in payload/Library/Audio/Plug-Ins/VST3/*.vst3; do
-        if [ -d "$plugin" ]; then
-            echo "Signing $(basename "$plugin")..."
-            codesign --force --sign "$SIGNING_IDENTITY_APP" \
-                --options runtime \
-                --timestamp \
-                --deep \
-                "$plugin"
-            
-            # Verify signature
-            codesign --verify --verbose "$plugin"
-        fi
-    done
-    
-    # Sign AU plugins
-    for plugin in payload/Library/Audio/Plug-Ins/Components/*.component; do
-        if [ -d "$plugin" ]; then
-            echo "Signing $(basename "$plugin")..."
-            codesign --force --sign "$SIGNING_IDENTITY_APP" \
-                --options runtime \
-                --timestamp \
-                --deep \
-                "$plugin"
-            
-            # Verify signature
-            codesign --verify --verbose "$plugin"
-        fi
-    done
-    
-    echo "Plugin signing complete."
+    "$SCRIPT_DIR/scripts/sign-plugins.sh"
 fi
 
-echo "Building installer package..."
-
-IDENTIFIER=$(grep -o 'pkg-ref id="[^"]*"' distribution.xml | head -1 | sed 's/pkg-ref id="\(.*\)"/\1/')
-PKG_NAME=$(grep -A1 'pkg-ref id=' distribution.xml | tail -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-INSTALLER_NAME="${PKG_NAME%.pkg}-Installer.pkg"
-
-pkgbuild \
-  --root payload \
-  --identifier $IDENTIFIER \
-  --version 0.0.1 \
-  --install-location / \
-  packages/$PKG_NAME
-
-echo "Creating final installer..."
-
-UNSIGNED_PKG="dist/$INSTALLER_NAME"
-SIGNED_PKG="dist/${INSTALLER_NAME%.pkg}-signed.pkg"
-FINAL_PKG="$UNSIGNED_PKG"
-
-productbuild \
-  --distribution distribution.xml \
-  --package-path packages \
-  "$UNSIGNED_PKG"
-
-# Sign and notarize if requested
-if [ "$NOTARIZE" = true ]; then
-    echo "Signing installer package..."
-    productsign --sign "$SIGNING_IDENTITY_INSTALLER" \
-        "$UNSIGNED_PKG" \
-        "$SIGNED_PKG"
-    
-    # Verify package signature
-    pkgutil --check-signature "$SIGNED_PKG"
-    
-    # Remove unsigned package and use signed one
-    rm -f "$UNSIGNED_PKG"
-    FINAL_PKG="$SIGNED_PKG"
-    
-    echo "Package signing complete."
-    
-    echo "Submitting package for notarization..."
-    echo "This may take several minutes..."
-    
-    # Submit for notarization
-    xcrun notarytool submit "$FINAL_PKG" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$APPLE_TEAM_ID" \
-        --password "$APPLE_APP_PASSWORD" \
-        --wait
-    
-    if [ $? -eq 0 ]; then
-        echo "Notarization successful!"
-        
-        # Staple the notarization ticket
-        echo "Stapling notarization ticket..."
-        xcrun stapler staple "$FINAL_PKG"
-        
-        # Verify stapling
-        xcrun stapler validate "$FINAL_PKG"
-        
-        echo "Notarization complete."
-    else
-        echo "Error: Notarization failed!"
-        echo "Check your credentials and try again."
-        exit 1
-    fi
+if [ "$BUILD_DMG" = true ]; then
+    STAGE="build-dmg.sh"
+    IDENTITY="${SIGNING_IDENTITY_APP:-}"
+else
+    STAGE="build-pkg.sh"
+    IDENTITY="${SIGNING_IDENTITY_INSTALLER:-}"
 fi
 
-rm -f packages/$PKG_NAME
-rm -rf payload/Library
+if [ "$NOTARIZE" = true ]; then
+    SIGN_ARGS=(--sign "$IDENTITY")
+else
+    SIGN_ARGS=(--no-sign)
+fi
+
+FINAL_ARTIFACT="$("$SCRIPT_DIR/scripts/$STAGE" "${SIGN_ARGS[@]}")"
+
+if [ "$NOTARIZE" = true ]; then
+    "$SCRIPT_DIR/scripts/notarize.sh" "$FINAL_ARTIFACT"
+fi
+
+rm -rf "$PAYLOAD_DIR"
 
 echo ""
 echo "✅ Build complete!"
-echo "📦 Package: $FINAL_PKG"
+echo "📦 Package: $FINAL_ARTIFACT"
 
 if [ "$NOTARIZE" = true ]; then
     echo "🔐 Signed & Notarized: Yes"

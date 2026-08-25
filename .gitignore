@@ -5,6 +5,7 @@
 dist/*
 packages/*
 payload/*
+dmg-staging/
 plugin-binaries/*
 
 .env

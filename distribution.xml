@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Template. ${PRODUCT_NAME} and ${BUNDLE_ID} are substituted at build time
+    from the environment (see .env.example); the rendered copy is written to
+    packages/distribution.xml.
+-->
 <installer-gui-script minSpecVersion="1">
 
-    <title>Plugin</title>
+    <title>${PRODUCT_NAME}</title>
 
     <options customize="never"/>
 
@@ -9,12 +14,10 @@
         <line choice="default"/>
     </choices-outline>
 
-    <choice id="default" title="MyPlugin">
-        <pkg-ref id="com.example.myplugin"/>
+    <choice id="default" title="${PRODUCT_NAME}">
+        <pkg-ref id="${BUNDLE_ID}"/>
     </choice>
 
-    <pkg-ref id="com.example.myplugin">
-        PluginBundle.pkg
-    </pkg-ref>
+    <pkg-ref id="${BUNDLE_ID}">component.pkg</pkg-ref>
 
 </installer-gui-script>
