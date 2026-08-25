@@ -45,7 +45,7 @@ if [ "$NOTARIZE" = true ]; then
 fi
 
 rm -f dist/*.pkg
-mkdir -p dist
+mkdir -p dist packages
 
 echo "Preparing payload..."
 
