@@ -1,5 +1,7 @@
-// Installs for the app (as root on Mac) and doubles as a test CLI; see usage()
+// Installs for the Mac app as root, and doubles as a test CLI; see usage()
 
+#include "ExePayload.h"
+#include "HelperCommand.h"
 #include "Manifest.h"
 #include "Platform.h"
 #include "PluginInstaller.h"
@@ -11,7 +13,9 @@ namespace
     int usage()
     {
         std::cerr << "Usage: InstallerHelper status <payload-dir> [<install-root>]\n"
-                     "       InstallerHelper install|uninstall <payload-dir> <install-root> <bundle>..." << std::endl;
+                     "       InstallerHelper install|uninstall <payload-dir> <install-root> <bundle>...\n"
+                     "       InstallerHelper extract <windows-installer.exe> <dir>   (to check what build-exe.sh made)"
+                  << std::endl;
         return 2;
     }
 
@@ -27,25 +31,6 @@ namespace
 
         return 0;
     }
-
-    int change (const PluginInstaller& installer, bool installing, const juce::StringArray& names)
-    {
-        const auto bundles = installer.findBundles (names);
-        if (! bundles || bundles->empty())
-        {
-            std::cerr << "Not in installer.json: " << names.joinIntoString (", ") << std::endl;
-            return 1;
-        }
-
-        const auto result = installing ? installer.installHere (*bundles) : installer.uninstallHere (*bundles);
-        if (result.outcome != InstallResult::Outcome::done)
-        {
-            std::cerr << result.message << std::endl;
-            return 1;
-        }
-
-        return 0;
-    }
 }
 
 int main (int argc, char* argv[])
@@ -54,15 +39,33 @@ int main (int argc, char* argv[])
     for (int i = 1; i < argc; ++i)
         args.add (juce::String::fromUTF8 (argv[i]));
 
-    if (args.size() < 2)
-        return usage();
+    if (args[0] == "install" || args[0] == "uninstall")
+    {
+        const auto result = runHelperCommand (args);
+        if (result.outcome == InstallResult::Outcome::done)
+            return 0;
+
+        std::cerr << result.message << std::endl;
+        return 1;
+    }
 
     const auto cwd = juce::File::getCurrentWorkingDirectory();
-    const auto command = args[0];
+
+    if (args[0] == "extract" && args.size() == 3)
+    {
+        if (exePayload::extract (cwd.getChildFile (args[1]), cwd.getChildFile (args[2])))
+            return 0;
+
+        std::cerr << "No plugins found in " << args[1] << std::endl;
+        return 1;
+    }
+
+    if (args[0] != "status" || args.size() < 2 || args.size() > 3)
+        return usage();
+
     const auto payloadDir = cwd.getChildFile (args[1]);
     const auto installRoot = args.size() > 2 ? cwd.getChildFile (args[2]) : platform::defaultInstallRoot();
 
-    // Re-checks installer.json, so bundle names are never trusted blindly
     Manifest manifest;
     if (const auto result = Manifest::load (payloadDir, manifest); result.failed())
     {
@@ -70,13 +73,5 @@ int main (int argc, char* argv[])
         return 1;
     }
 
-    const PluginInstaller installer (std::move (manifest), payloadDir, installRoot);
-
-    if (command == "status" && args.size() <= 3)
-        return status (installer);
-
-    if ((command == "install" || command == "uninstall") && args.size() >= 4)
-        return change (installer, command == "install", juce::StringArray (args.begin() + 3, args.size() - 3));
-
-    return usage();
+    return status (PluginInstaller (std::move (manifest), payloadDir, installRoot));
 }

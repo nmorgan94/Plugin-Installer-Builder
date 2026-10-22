@@ -11,16 +11,18 @@ source "$SCRIPT_DIR/lib/common.sh"
 NOTARIZE=false
 BUILD_PKG=false
 BUILD_DMG=false
+BUILD_EXE=false
 
 usage() {
-    echo "Usage: $0 (--pkg | --dmg) [--notarize]"
+    echo "Usage: $0 (--pkg | --dmg | --exe) [--notarize]"
     echo ""
-    echo "Exactly one of --pkg or --dmg is required."
+    echo "Exactly one of --pkg, --dmg or --exe is required."
     echo ""
     echo "Options:"
     echo "  --pkg        Build a .pkg installer"
     echo "  --dmg        Build a .dmg disk image"
-    echo "  --notarize   Sign and notarize the output (distribution)"
+    echo "  --exe        Build a Windows .exe installer from plugin-binaries/Windows/"
+    echo "  --notarize   Sign and notarize the output (distribution; Mac only)"
     echo ""
     echo "The product name, version and bundle ID are read from the plugin bundles."
     echo "Output: dist/<Product-Name>-<version>-Installer.<ext>; -unsigned without --notarize, -not-notarized until stapled."
@@ -34,6 +36,7 @@ usage() {
     echo "  scripts/sign-plugins.sh"
     echo "  pkg/build-pkg.sh"
     echo "  dmg/build-dmg.sh"
+    echo "  exe/build-exe.sh"
     echo "  scripts/notarize.sh <artifact>"
 }
 
@@ -51,6 +54,10 @@ while [[ $# -gt 0 ]]; do
             BUILD_DMG=true
             shift
             ;;
+        --exe)
+            BUILD_EXE=true
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -63,19 +70,29 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ "$BUILD_PKG" = true ] && [ "$BUILD_DMG" = true ]; then
-    echo "Error: --pkg and --dmg are mutually exclusive -- pick one." >&2
+FORMATS=0
+for format in "$BUILD_PKG" "$BUILD_DMG" "$BUILD_EXE"; do
+    [ "$format" = false ] || FORMATS=$((FORMATS + 1))
+done
+
+if [ "$FORMATS" -gt 1 ]; then
+    echo "Error: --pkg, --dmg and --exe are mutually exclusive -- pick one." >&2
     exit 1
 fi
 
-if [ "$BUILD_PKG" = false ] && [ "$BUILD_DMG" = false ]; then
-    echo "Error: no output format selected -- pass --pkg or --dmg." >&2
+if [ "$FORMATS" -eq 0 ]; then
+    echo "Error: no output format selected -- pass --pkg, --dmg or --exe." >&2
     echo "" >&2
     usage >&2
     exit 1
 fi
 
-export BUILD_DIR PAYLOAD_DIR PACKAGES_DIR DIST_DIR DMG_STAGING_DIR
+if [ "$BUILD_EXE" = true ] && [ "$NOTARIZE" = true ]; then
+    echo "Error: --notarize is for Mac installers; Windows signing isn't supported yet." >&2
+    exit 1
+fi
+
+export BUILD_DIR WINDOWS_BUILD_DIR PAYLOAD_DIR PACKAGES_DIR DIST_DIR DMG_STAGING_DIR EXE_STAGING_DIR
 
 for var in PRODUCT_NAME BUNDLE_ID VERSION; do
     [ -z "${!var:-}" ] || log "Note: ignoring $var from the environment; it's read from the bundles. Remove it from .env."
@@ -93,6 +110,18 @@ if [ "$NOTARIZE" = true ]; then
     fi
 
     require_env "${REQUIRED[@]}"
+fi
+
+summary() {
+    echo ""
+    echo "✅ Build complete!"
+    echo "📦 Package: $1"
+    echo "🔐 $2"
+}
+
+if [ "$BUILD_EXE" = true ]; then
+    summary "$("$SCRIPT_DIR/exe/build-exe.sh")" "Signed: No (Windows signing isn't supported yet)"
+    exit 0
 fi
 
 "$SCRIPT_DIR/scripts/stage-payload.sh" >/dev/null
@@ -123,12 +152,8 @@ fi
 
 rm -rf "$PAYLOAD_DIR"
 
-echo ""
-echo "✅ Build complete!"
-echo "📦 Package: $FINAL_ARTIFACT"
-
 if [ "$NOTARIZE" = true ]; then
-    echo "🔐 Signed & Notarized: Yes"
+    summary "$FINAL_ARTIFACT" "Signed & Notarized: Yes"
 else
-    echo "🔐 Signed & Notarized: No (unsigned build)"
+    summary "$FINAL_ARTIFACT" "Signed & Notarized: No (unsigned build)"
 fi

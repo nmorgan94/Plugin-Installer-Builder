@@ -33,11 +33,11 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          case "$RUNNER_OS" in
-            macOS) app="SampleRealm Installer.app" ;;
-            *)     app="SampleRealm Installer.exe" ;;
-          esac
-          tar -czf "Installer-$RUNNER_OS.tar.gz" -C installer/build-release/SampleRealmInstaller_artefacts/Release "$app"
+          ext=exe
+          [ "$RUNNER_OS" != macOS ] || ext=app
+          apps=(installer/build-release/*_artefacts/Release/*.$ext)
+          [ ${#apps[@]} -eq 1 ] && [ -e "${apps[0]}" ] || { echo "Expected one .$ext, found: ${apps[*]}"; exit 1; }
+          tar -czf "Installer-$RUNNER_OS.tar.gz" -C "$(dirname "${apps[0]}")" "$(basename "${apps[0]}")"
 
       - uses: actions/upload-artifact@v7
         with:

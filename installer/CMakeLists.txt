@@ -52,20 +52,23 @@ target_sources(InstallerCore INTERFACE ${CoreFiles})
 target_include_directories(InstallerCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/Source/core")
 target_link_libraries(InstallerCore INTERFACE juce::juce_core)
 
-# Installs as root for the Mac app, and is a test CLI; links juce_core only, so UI code in core/ fails
-juce_add_console_app(InstallerHelper PRODUCT_NAME "InstallerHelper")
-target_sources(InstallerHelper PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/helper/Main.cpp")
-target_link_libraries(InstallerHelper
-    PRIVATE
-        InstallerCore
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_warning_flags
-)
+# Mac only: the app runs it as root, and it's a test CLI
+# Links only juce_core, so UI code in core/ fails to build
+if(APPLE)
+    juce_add_console_app(InstallerHelper PRODUCT_NAME "InstallerHelper")
+    target_sources(InstallerHelper PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/helper/Main.cpp")
+    target_link_libraries(InstallerHelper
+        PRIVATE
+            InstallerCore
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags
+    )
+endif()
 
 juce_add_gui_app(${PROJECT_NAME}
         PRODUCT_NAME
-          "SampleRealm Installer"
+          SampleRealm-Installer
         COMPANY_NAME
           SampleRealm
         BUNDLE_ID

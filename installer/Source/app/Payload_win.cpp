@@ -1,9 +1,22 @@
+#include "ExePayload.h"
 #include "Payload.h"
 
-// For now a .plugins folder beside the exe, until the payload is appended to the exe itself
+// Inside a packaged exe, or a .plugins folder beside a bare one
 juce::File defaultPayloadFolder()
 {
-    return juce::File::getSpecialLocation (juce::File::currentApplicationFile).getSiblingFile (".plugins");
+    const auto exe = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+
+    if (! exePayload::find (exe))
+        return exe.getSiblingFile (".plugins");
+
+    // Deleted when the app quits
+    static const juce::TemporaryFile extracted;
+
+    // Never install half-unzipped plugins
+    if (! exePayload::extract (exe, extracted.getFile()))
+        extracted.getFile().deleteRecursively();
+
+    return extracted.getFile();
 }
 
 void releasePayload() {}

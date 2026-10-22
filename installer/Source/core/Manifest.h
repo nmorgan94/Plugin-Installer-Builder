@@ -19,8 +19,8 @@ struct Manifest
     juce::String product, vendor, version, bundleId, category, url, email, copyright;
     std::vector<Bundle> bundles;
 
-    // Reads and validates payloadDir/installer.json
-    static juce::Result load (const juce::File& payloadDir, Manifest& result);
+    // Reads and validates installer.json; needBundles is false for the uninstaller
+    static juce::Result load (const juce::File& payloadDir, Manifest& result, bool needBundles = true);
 };
 
 // "VST3" or "Audio Unit".

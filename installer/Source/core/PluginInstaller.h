@@ -47,6 +47,8 @@ public:
 private:
     InstallResult runAsAdmin (const juce::String& command, const std::vector<Manifest::Bundle>&,
                               const juce::String& action) const;
+    // Which app to close; checked before changing anything
+    juce::String inUseMessage (const std::vector<Manifest::Bundle>&) const;
     InstallResult fail (const juce::String& reason) const;
     void refreshAudioUnits (bool audioUnitsChanged) const;
     void log (const juce::String&) const;

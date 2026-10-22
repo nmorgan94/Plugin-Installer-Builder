@@ -117,6 +117,10 @@ InstallResult PluginInstaller::uninstall (const std::vector<Manifest::Bundle>& b
 InstallResult PluginInstaller::runAsAdmin (const juce::String& command, const std::vector<Manifest::Bundle>& bundles,
                                            const juce::String& action) const
 {
+    // Before the admin prompt so it isn't shown in unnecessarily
+    if (const auto inUse = inUseMessage (bundles); inUse.isNotEmpty())
+        return fail (inUse);
+
     juce::StringArray args { command, payloadDir.getFullPathName(), installRoot.getFullPathName() };
     for (const auto& bundle : bundles)
         args.add (bundle.name);
@@ -126,6 +130,9 @@ InstallResult PluginInstaller::runAsAdmin (const juce::String& command, const st
 
 InstallResult PluginInstaller::installHere (const std::vector<Manifest::Bundle>& bundles) const
 {
+    if (const auto inUse = inUseMessage (bundles); inUse.isNotEmpty())
+        return fail (inUse);
+
     bool audioUnitsChanged = false;
     const juce::ScopeGuard refresh { [&] { refreshAudioUnits (audioUnitsChanged); } };
 
@@ -160,11 +167,18 @@ InstallResult PluginInstaller::installHere (const std::vector<Manifest::Bundle>&
         audioUnitsChanged = audioUnitsChanged || bundle.format == Manifest::Format::au;
     }
 
+    // Not a failed install: the plugins work without it
+    if (! platform::registerProduct (manifest, payloadDir, installRoot))
+        log ("Couldn't add the uninstaller");
+
     return { InstallResult::Outcome::done, {} };
 }
 
 InstallResult PluginInstaller::uninstallHere (const std::vector<Manifest::Bundle>& bundles) const
 {
+    if (const auto inUse = inUseMessage (bundles); inUse.isNotEmpty())
+        return fail (inUse);
+
     bool audioUnitsChanged = false;
     const juce::ScopeGuard refresh { [&] { refreshAudioUnits (audioUnitsChanged); } };
 
@@ -182,6 +196,10 @@ InstallResult PluginInstaller::uninstallHere (const std::vector<Manifest::Bundle
         audioUnitsChanged = audioUnitsChanged || bundle.format == Manifest::Format::au;
     }
 
+    if (std::none_of (manifest.bundles.begin(), manifest.bundles.end(),
+                      [this] (const auto& bundle) { return installedLocation (bundle).exists(); }))
+        platform::unregisterProduct (manifest, installRoot);
+
     return { InstallResult::Outcome::done, {} };
 }
 
@@ -191,6 +209,22 @@ void PluginInstaller::refreshAudioUnits (bool audioUnitsChanged) const
     platform::afterChanges (audioUnitsChanged);
     if (audioUnitsChanged)
         log ("Refreshed the Audio Unit cache");
+}
+
+juce::String PluginInstaller::inUseMessage (const std::vector<Manifest::Bundle>& bundles) const
+{
+    for (const auto& bundle : bundles)
+    {
+        const auto apps = platform::appsUsing (installedLocation (bundle));
+        if (apps.isEmpty())
+            continue;
+
+        const auto several = apps.size() > 1;
+        return apps.joinIntoString (", ") + (several ? " are using " : " is using ") + bundle.name
+             + (several ? ". Close them and try again." : ". Close it and try again.");
+    }
+
+    return {};
 }
 
 InstallResult PluginInstaller::fail (const juce::String& reason) const

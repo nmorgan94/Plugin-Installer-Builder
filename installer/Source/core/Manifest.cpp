@@ -1,4 +1,5 @@
 #include "Manifest.h"
+#include "Platform.h"
 
 namespace
 {
@@ -15,7 +16,7 @@ namespace
     }
 }
 
-juce::Result Manifest::load (const juce::File& payloadDir, Manifest& result)
+juce::Result Manifest::load (const juce::File& payloadDir, Manifest& result, bool needBundles)
 {
     const auto file = payloadDir.getChildFile (fileName);
 
@@ -39,8 +40,8 @@ juce::Result Manifest::load (const juce::File& payloadDir, Manifest& result)
     m.email     = json["email"].toString();
     m.copyright = json["copyright"].toString();
 
-    if (m.product.isEmpty() || m.version.isEmpty())
-        return juce::Result::fail ("installer.json has no product or version");
+    if (m.product.isEmpty() || m.version.isEmpty() || m.bundleId.isEmpty())
+        return juce::Result::fail ("installer.json has no product, version or bundle ID");
 
     if (const auto* bundles = json["bundles"].getArray())
     {
@@ -52,12 +53,15 @@ juce::Result Manifest::load (const juce::File& payloadDir, Manifest& result)
             if (! format)
                 return juce::Result::fail ("Unknown plugin format: " + entry["format"].toString());
 
+            if (! platform::supportsFormat (*format))
+                return juce::Result::fail (formatDisplayName (*format) + " plugins can't be installed on this computer");
+
             // A bare bundle name with the right extension, so nothing outside the payload is touched
             if (bundleName.containsAnyOf ("/\\") || bundleName.startsWith (".")
                 || ! bundleName.endsWith (bundleExtension (*format)))
                 return juce::Result::fail ("Invalid bundle name: " + bundleName);
 
-            if (! payloadDir.getChildFile (bundleName).isDirectory())
+            if (needBundles && ! payloadDir.getChildFile (bundleName).isDirectory())
                 return juce::Result::fail ("Missing " + bundleName + " in " + payloadDir.getFullPathName());
 
             m.bundles.push_back ({ bundleName, *format });

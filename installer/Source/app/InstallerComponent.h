@@ -8,7 +8,8 @@
 class InstallerComponent final : public juce::Component
 {
 public:
-    explicit InstallerComponent (std::unique_ptr<PluginInstaller>);
+    // removeOnly: the uninstaller's screen
+    InstallerComponent (std::unique_ptr<PluginInstaller>, bool removeOnly);
     explicit InstallerComponent (const juce::String& error);
 
     void resized() override;
@@ -44,6 +45,7 @@ private:
     void showOnly (std::initializer_list<juce::Component*>);
 
     std::unique_ptr<PluginInstaller> installer;
+    const bool removeOnly = false;
     std::vector<std::unique_ptr<Row>> rows;
     bool busy = false;
 

@@ -5,7 +5,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 
-[ -d "$BUILD_DIR" ] || die "Build directory not found: $BUILD_DIR"
+[ -d "$BUILD_DIR" ] || die "Mac plugin builds not found: put them in $BUILD_DIR"
 
 rm -rf "$PAYLOAD_DIR"
 mkdir -p "$PAYLOAD_VST3_DIR" "$PAYLOAD_COMPONENTS_DIR"

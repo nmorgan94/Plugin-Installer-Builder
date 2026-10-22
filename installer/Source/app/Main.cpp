@@ -1,18 +1,25 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "HelperCommand.h"
 #include "InstallerComponent.h"
 #include "Payload.h"
 #include "Platform.h"
 
 namespace
 {
-    // Development flags: --payload <dir> and --install-root <dir>
-    juce::File fileArgument (const juce::StringArray& args, const juce::String& flag, const juce::File& fallback)
+    bool isHelperRun (const juce::StringArray& args)
+    {
+        return args.size() >= 2 && args[0] == commandLine::helper;
+    }
+
+    // Dev flags: --payload <dir>, --install-root <dir>; fallback is lazy
+    juce::File fileArgument (const juce::StringArray& args, const juce::String& flag,
+                             const std::function<juce::File()>& fallback)
     {
         const auto index = args.indexOf (flag);
 
         if (index < 0 || index + 1 >= args.size())
-            return fallback;
+            return fallback();
 
         return juce::File::getCurrentWorkingDirectory().getChildFile (args[index + 1]);
     }
@@ -52,23 +59,41 @@ public:
 
     const juce::String getApplicationVersion() override { return JUCE_APPLICATION_VERSION_STRING; }
     // JUCE's lock is keyed on the name above, so different products' installers can still run together
-    bool moreThanOneInstanceAllowed() override { return false; }
+    // The helper run and Uninstall.exe skip it
+    bool moreThanOneInstanceAllowed() override
+    {
+        const auto args = getCommandLineParameterArray();
+        return isHelperRun (args) || args.contains (commandLine::uninstall);
+    }
 
     void initialise (const juce::String&) override
     {
         const auto args = getCommandLineParameterArray();
-        const auto payloadDir = fileArgument (args, "--payload", defaultPayloadFolder());
-        const auto installRoot = fileArgument (args, "--install-root", platform::defaultInstallRoot());
+
+        if (isHelperRun (args))
+        {
+            const auto result = runHelperCommand (juce::StringArray (args.begin() + 2, args.size() - 2));
+            juce::File (args[1]).replaceWithText (result.message);
+            setApplicationReturnValue (result.outcome == InstallResult::Outcome::done ? 0 : 1);
+            quit();
+            return;
+        }
+
+        // From Apps & Features; installer.json sits beside Uninstall.exe
+        const auto uninstalling = args.contains (commandLine::uninstall);
+        const auto exeFolder = juce::File::getSpecialLocation (juce::File::currentExecutableFile).getParentDirectory();
+        const auto payloadDir = fileArgument (args, "--payload", [&] { return uninstalling ? exeFolder : defaultPayloadFolder(); });
+        const auto installRoot = fileArgument (args, "--install-root", platform::defaultInstallRoot);
 
         Manifest manifest;
         auto windowTitle = getApplicationName();
         std::unique_ptr<juce::Component> content;
 
-        if (const auto result = Manifest::load (payloadDir, manifest); result.wasOk())
+        if (const auto result = Manifest::load (payloadDir, manifest, ! uninstalling); result.wasOk())
         {
-            windowTitle = "Install " + manifest.product;
+            windowTitle = (uninstalling ? "Remove " : "Install ") + manifest.product;
             content = std::make_unique<InstallerComponent> (
-                std::make_unique<PluginInstaller> (std::move (manifest), payloadDir, installRoot));
+                std::make_unique<PluginInstaller> (std::move (manifest), payloadDir, installRoot), uninstalling);
         }
         else
         {

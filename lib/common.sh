@@ -125,6 +125,9 @@ read_plugin_metadata() {
     [ -n "$first" ] || die "No plugin bundles found"
     [ -n "$PLUGIN_NAME" ] && [ -n "$PLUGIN_VENDOR" ] || die "couldn't find the plugin's name and vendor"
 
+    # Windows builds have no Info.plist: use JUCE's default, com.<company>.<name>
+    BUNDLE_ID="${BUNDLE_ID:-com.${PLUGIN_VENDOR// /}.${PLUGIN_NAME// /}}"
+
     case "$PLUGIN_NAME" in
         "$PLUGIN_VENDOR"*) PRODUCT_NAME="$PLUGIN_NAME" ;;
         *)                 PRODUCT_NAME="$PLUGIN_VENDOR $PLUGIN_NAME" ;;
@@ -171,6 +174,44 @@ artifact_path() {
     printf '%s/%s-%s-Installer%s.%s' "$DIST_DIR" "${PRODUCT_NAME// /-}" "$VERSION" "$suffix" "$1"
 }
 
+# gh api for this repo, so it works from any folder
+gh_api() { (cd "$REPO_ROOT" && gh api "$@"); }
+
+# Prints the installer app/exe from the latest successful Installer CI run on main
+fetch_installer() {
+    local platform="$1" ext=app run artifact dir found
+    [ "$platform" = macOS ] || ext=exe
+    command -v gh >/dev/null || die "gh is required to download the installer: brew install gh, then gh auth login"
+
+    # GitHub's branch/status filters sometimes return nothing
+    run="$(gh_api "repos/{owner}/{repo}/actions/workflows/installer.yml/runs?per_page=100" \
+        --jq '[.workflow_runs[] | select(.head_branch == "main" and .conclusion == "success")][0].id // empty')" ||
+        die "couldn't list the Installer CI runs (try: gh auth login)"
+    [ -n "$run" ] || die "no successful Installer CI run on main. Start one: gh workflow run installer.yml"
+
+    dir="$INSTALLER_CACHE_DIR/$run/$platform"
+    if [ ! -d "$dir" ]; then
+        artifact="$(gh_api "repos/{owner}/{repo}/actions/runs/$run/artifacts" \
+            --jq ".artifacts[] | select(.name == \"Installer-$platform.tar.gz\" and (.expired | not)) | .id")"
+        [ -n "$artifact" ] || die "Installer CI run $run's files have expired. Start a new run: gh workflow run installer.yml"
+
+        log "Downloading the $platform installer from Installer CI run $run..."
+        rm -rf "$dir.partial"
+        mkdir -p "$dir.partial"
+        gh_api "repos/{owner}/{repo}/actions/artifacts/$artifact/zip" | tar -xzf - -C "$dir.partial" ||
+            die "couldn't download the $platform installer"
+        mv "$dir.partial" "$dir"
+
+        # Keep only this run's downloads
+        find "$INSTALLER_CACHE_DIR" -mindepth 1 -maxdepth 1 ! -name "$run" -exec rm -rf {} +
+    fi
+
+    # By type, so the name lives only in installer/CMakeLists.txt
+    found=("$dir"/*."$ext")
+    [ ${#found[@]} -eq 1 ] && [ -e "${found[0]}" ] || die "Installer CI run $run's download has no single .$ext"
+    echo "${found[0]}"
+}
+
 # The flags notarisation requires
 sign_code() {
     codesign --force --sign "$1" --options runtime --timestamp "$2" >&2
@@ -187,13 +228,16 @@ xml_escape() {
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DISTRIBUTION_TEMPLATE="$REPO_ROOT/pkg/distribution.xml"
 
-BUILD_DIR="${BUILD_DIR:-$REPO_ROOT/plugin-binaries}"
+# Separate, since Mac and Windows builds share bundle names
+BUILD_DIR="${BUILD_DIR:-$REPO_ROOT/plugin-binaries/macOS}"
+WINDOWS_BUILD_DIR="${WINDOWS_BUILD_DIR:-$REPO_ROOT/plugin-binaries/Windows}"
 PAYLOAD_DIR="${PAYLOAD_DIR:-$REPO_ROOT/payload}"
 PACKAGES_DIR="${PACKAGES_DIR:-$REPO_ROOT/packages}"
 DIST_DIR="${DIST_DIR:-$REPO_ROOT/dist}"
 DMG_STAGING_DIR="${DMG_STAGING_DIR:-$REPO_ROOT/dmg-staging}"
+EXE_STAGING_DIR="${EXE_STAGING_DIR:-$REPO_ROOT/exe-staging}"
 DMG_PLUGINS_DIR=".plugins"  # the installer app looks for exactly this name beside itself
-INSTALLER_DIR="$REPO_ROOT/installer"
+INSTALLER_CACHE_DIR="$REPO_ROOT/installer-cache"
 
 # Plugins sit inside the payload at their real install paths.
 VST3_INSTALL_DIR="/Library/Audio/Plug-Ins/VST3"

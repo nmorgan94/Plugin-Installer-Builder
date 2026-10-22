@@ -1,5 +1,6 @@
 #include "InstallerComponent.h"
 #include "Payload.h"
+#include "Platform.h"
 
 namespace
 {
@@ -22,8 +23,8 @@ namespace
     void quit() { juce::JUCEApplication::getInstance()->systemRequestedQuit(); }
 }
 
-InstallerComponent::InstallerComponent (std::unique_ptr<PluginInstaller> pluginInstaller)
-    : installer (std::move (pluginInstaller))
+InstallerComponent::InstallerComponent (std::unique_ptr<PluginInstaller> pluginInstaller, bool removeOnlyScreen)
+    : installer (std::move (pluginInstaller)), removeOnly (removeOnlyScreen)
 {
     const auto& manifest = installer->getManifest();
 
@@ -104,6 +105,13 @@ void InstallerComponent::refreshRow (Row& row)
 
 void InstallerComponent::updateButtons()
 {
+    if (removeOnly)
+    {
+        actionButton.setButtonText ("Remove");
+        actionButton.setEnabled (true);
+        return;
+    }
+
     using State = PluginInstaller::Status::State;
     int selected = 0, updates = 0, reinstalls = 0;
 
@@ -148,11 +156,13 @@ void InstallerComponent::showWelcome()
 {
     const auto& manifest = installer->getManifest();
 
-    title.setText (manifest.product, juce::dontSendNotification);
+    title.setText (removeOnly ? "Remove " + manifest.product : manifest.product, juce::dontSendNotification);
     footer.setText (manifest.copyright, juce::dontSendNotification);
 
     cancelButton.setButtonText ("Cancel");
-    actionButton.onClick = [this] { confirmInstall(); };
+
+    // The uninstaller's screen is itself the confirmation
+    actionButton.onClick = [this] { removeOnly ? start (Operation::remove) : confirmInstall(); };
 
     bool anyInstalled = false;
     for (const auto& row : rows)
@@ -163,10 +173,11 @@ void InstallerComponent::showWelcome()
     updateButtons();
 
     showOnly ({ &title, &subtitle, &footer, &cancelButton, &actionButton });
-    removeButton.setVisible (anyInstalled);
+    removeButton.setVisible (anyInstalled && ! removeOnly);
     for (const auto& row : rows)
     {
         row->toggle.setVisible (true);
+        row->toggle.setEnabled (! removeOnly);
         row->status.setVisible (true);
     }
 }
@@ -224,14 +235,16 @@ void InstallerComponent::start (Operation operation)
 
     busy = true;
     const auto installing = operation == Operation::install;
-    const auto bundles = selectedBundles (! installing);
+    // Everything, so the uninstaller always clears its Apps & Features entry
+    const auto bundles = removeOnly ? installer->getManifest().bundles : selectedBundles (! installing);
+    const auto finished = removeOnly ? selectedBundles (true) : bundles;
 
     title.setText (installing ? "Installing..." : "Removing...", juce::dontSendNotification);
-    message.setText ("Enter your password when asked.", juce::dontSendNotification);
+    message.setText (platform::adminPromptHint(), juce::dontSendNotification);
     showOnly ({ &title, &subtitle, &message });
 
     // Not a timer: the password prompt runs the event loop while it waits, so a timer would fire again
-    juce::MessageManager::callAsync ([safe = juce::Component::SafePointer (this), operation, installing, bundles]
+    juce::MessageManager::callAsync ([safe = juce::Component::SafePointer (this), operation, installing, bundles, finished]
     {
         if (safe == nullptr)
             return;
@@ -241,7 +254,7 @@ void InstallerComponent::start (Operation operation)
 
         switch (result.outcome)
         {
-            case InstallResult::Outcome::done:      safe->showFinished (operation, bundles); break;
+            case InstallResult::Outcome::done:      safe->showFinished (operation, finished); break;
             case InstallResult::Outcome::cancelled: safe->showWelcome(); break;
             case InstallResult::Outcome::failed:    safe->showFailed (operation, result.message); break;
         }
@@ -258,9 +271,16 @@ void InstallerComponent::showFinished (Operation operation, const std::vector<Ma
         lines.add (tick + "  " + formatDisplayName (bundle.format) + (installing ? " installed in " : " removed from ")
                    + installer->installedLocation (bundle).getParentDirectory().getFullPathName());
 
-    lines.add ({});
-    lines.add (installing ? "Restart your DAW to use " + manifest.product + "."
-                          : "Restart your DAW so it stops listing " + manifest.product + ".");
+    if (bundles.empty())
+    {
+        lines.add (manifest.product + " was already removed.");
+    }
+    else
+    {
+        lines.add ({});
+        lines.add (installing ? "Restart your DAW to use " + manifest.product + "."
+                              : "Restart your DAW so it stops listing " + manifest.product + ".");
+    }
 
     title.setText (installing ? "Installed" : "Removed", juce::dontSendNotification);
     message.setText (lines.joinIntoString ("\n"), juce::dontSendNotification);

@@ -9,6 +9,8 @@ dist/*
 packages/*
 payload/*
 dmg-staging/
+exe-staging/
+installer-cache/
 plugin-binaries/*
 installer/build-*/
 

@@ -2,7 +2,7 @@
 # Build a distribution .dmg from the staged payload, containing the plugins
 # and an installer app that copies them into place. Prints the .dmg path.
 # Env: SIGNING_IDENTITY_APP (name and version come from the bundles)   Flags: --sign ID | --no-sign
-#      INSTALLER_APP: a prebuilt installer app to use instead of building installer/
+#      INSTALLER_APP: a local installer app instead of CI's
 
 set -euo pipefail
 
@@ -37,12 +37,7 @@ done
 write_manifest "$PLUGINS_DIR"
 chflags hidden "$PLUGINS_DIR"
 
-if [ -z "${INSTALLER_APP:-}" ]; then
-    # Incremental, so quick when installer/ hasn't changed
-    log "Building installer app..."
-    (cd "$INSTALLER_DIR" && cmake --workflow --preset release) >&2
-    INSTALLER_APP="$INSTALLER_DIR/build-release/SampleRealmInstaller_artefacts/Release/SampleRealm Installer.app"
-fi
+INSTALLER_APP="${INSTALLER_APP:-$(fetch_installer macOS)}"
 [ -d "$INSTALLER_APP" ] || die "Installer app not found: $INSTALLER_APP"
 
 APP="$DMG_STAGING_DIR/Install $PRODUCT_NAME.app"
