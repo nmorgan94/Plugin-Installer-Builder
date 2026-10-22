@@ -1,5 +1,5 @@
 #!/bin/bash
-# Notarize and staple a .pkg or .dmg:  ./scripts/notarize.sh dist/Plugin.dmg
+# Notarize and staple a .pkg or .dmg, then print its path:  ./scripts/notarize.sh dist/Plugin.dmg
 # Env: APPLE_ID + APPLE_TEAM_ID + APPLE_APP_PASSWORD, or KEYCHAIN_PROFILE
 set -euo pipefail
 
@@ -16,3 +16,8 @@ log "Stapling notarization ticket..."
 xcrun stapler staple "$ARTIFACT" >&2
 xcrun stapler validate "$ARTIFACT" >&2
 log "Notarization complete."
+
+# Only now does it get the plain release name
+RELEASE="${ARTIFACT/-not-notarized./.}"
+[ "$RELEASE" = "$ARTIFACT" ] || mv "$ARTIFACT" "$RELEASE"
+echo "$RELEASE"

@@ -26,4 +26,6 @@ done
 
 [ "$staged" -gt 0 ] || die "No .vst3 or .component bundles found in $BUILD_DIR"
 
-log "Staged $staged plugin bundle(s)."
+# Here, before anything is signed, so mismatched bundles stop the build early
+read_payload_metadata
+log "Staged $staged plugin bundle(s): $PRODUCT_NAME $VERSION ($BUNDLE_ID)"

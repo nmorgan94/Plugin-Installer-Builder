@@ -1,11 +1,15 @@
 # macOS
 .DS_Store
 
+# Editor settings
+.vscode/
+
 # Build artifacts
 dist/*
 packages/*
 payload/*
 dmg-staging/
 plugin-binaries/*
+installer/build-*/
 
 .env

@@ -22,10 +22,8 @@ usage() {
     echo "  --dmg        Build a .dmg disk image"
     echo "  --notarize   Sign and notarize the output (distribution)"
     echo ""
-    echo "Configured by environment (see .env.example):"
-    echo "  PRODUCT_NAME  Installer title, and the artifact filename"
-    echo "  BUNDLE_ID     Package identifier"
-    echo "  VERSION       Package version"
+    echo "The product name, version and bundle ID are read from the plugin bundles."
+    echo "Output: dist/<Product-Name>-<version>-Installer.<ext>; -unsigned without --notarize, -not-notarized until stapled."
     echo ""
     echo "A notarized .pkg needs a Developer ID Installer certificate."
     echo "A notarized .dmg needs only a Developer ID Application certificate,"
@@ -34,8 +32,8 @@ usage() {
     echo "Individual stages, runnable on their own after 'source .env':"
     echo "  scripts/stage-payload.sh"
     echo "  scripts/sign-plugins.sh"
-    echo "  scripts/build-pkg.sh"
-    echo "  scripts/build-dmg.sh"
+    echo "  pkg/build-pkg.sh"
+    echo "  dmg/build-dmg.sh"
     echo "  scripts/notarize.sh <artifact>"
 }
 
@@ -77,16 +75,14 @@ if [ "$BUILD_PKG" = false ] && [ "$BUILD_DMG" = false ]; then
     exit 1
 fi
 
-export VERSION PRODUCT_NAME BUNDLE_ID BUILD_DIR PAYLOAD_DIR PACKAGES_DIR DIST_DIR DMG_STAGING_DIR
+export BUILD_DIR PAYLOAD_DIR PACKAGES_DIR DIST_DIR DMG_STAGING_DIR
 
-REQUIRED=(PRODUCT_NAME)
-
-if [ "$BUILD_PKG" = true ]; then
-    REQUIRED+=(BUNDLE_ID VERSION)
-fi
+for var in PRODUCT_NAME BUNDLE_ID VERSION; do
+    [ -z "${!var:-}" ] || log "Note: ignoring $var from the environment; it's read from the bundles. Remove it from .env."
+done
 
 if [ "$NOTARIZE" = true ]; then
-    REQUIRED+=(SIGNING_IDENTITY_APP)
+    REQUIRED=(SIGNING_IDENTITY_APP)
 
     if [ "$BUILD_PKG" = true ]; then
         REQUIRED+=(SIGNING_IDENTITY_INSTALLER)
@@ -95,9 +91,9 @@ if [ "$NOTARIZE" = true ]; then
     if [ -z "${KEYCHAIN_PROFILE:-}" ]; then
         REQUIRED+=(APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD)
     fi
-fi
 
-require_env "${REQUIRED[@]}"
+    require_env "${REQUIRED[@]}"
+fi
 
 "$SCRIPT_DIR/scripts/stage-payload.sh" >/dev/null
 
@@ -106,10 +102,10 @@ if [ "$NOTARIZE" = true ]; then
 fi
 
 if [ "$BUILD_DMG" = true ]; then
-    STAGE="build-dmg.sh"
+    STAGE="dmg/build-dmg.sh"
     IDENTITY="${SIGNING_IDENTITY_APP:-}"
 else
-    STAGE="build-pkg.sh"
+    STAGE="pkg/build-pkg.sh"
     IDENTITY="${SIGNING_IDENTITY_INSTALLER:-}"
 fi
 
@@ -119,10 +115,10 @@ else
     SIGN_ARGS=(--no-sign)
 fi
 
-FINAL_ARTIFACT="$("$SCRIPT_DIR/scripts/$STAGE" "${SIGN_ARGS[@]}")"
+FINAL_ARTIFACT="$("$SCRIPT_DIR/$STAGE" "${SIGN_ARGS[@]}")"
 
 if [ "$NOTARIZE" = true ]; then
-    "$SCRIPT_DIR/scripts/notarize.sh" "$FINAL_ARTIFACT"
+    FINAL_ARTIFACT="$("$SCRIPT_DIR/scripts/notarize.sh" "$FINAL_ARTIFACT")"
 fi
 
 rm -rf "$PAYLOAD_DIR"

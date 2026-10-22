@@ -17,10 +17,10 @@ for bundle in "$PAYLOAD_VST3_DIR"/*.vst3 "$PAYLOAD_COMPONENTS_DIR"/*.component; 
     while IFS= read -r nested; do
         [ -n "$nested" ] || continue
         log "  nested: ${nested#"$bundle"/}"
-        codesign --force --sign "$SIGNING_IDENTITY_APP" --options runtime --timestamp "$nested"
+        sign_code "$SIGNING_IDENTITY_APP" "$nested"
     done < <(find "$bundle" \( -name '*.framework' -o -name '*.dylib' -o -name '*.bundle' \) -depth)
 
-    codesign --force --sign "$SIGNING_IDENTITY_APP" --options runtime --timestamp "$bundle"
+    sign_code "$SIGNING_IDENTITY_APP" "$bundle"
     codesign --verify --strict --verbose=4 "$bundle"
     signed=$((signed + 1))
 done
