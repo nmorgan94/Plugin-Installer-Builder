@@ -60,7 +60,7 @@ namespace
         return "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + manifest.bundleId;
     }
 
-    // e.g. C:\Program Files\SampleRealm\SampleRealm Reverb
+    // e.g. C:\Program Files\Acme\Acme Reverb
     juce::File uninstallerFolder (const Manifest& manifest, const juce::File& installRoot)
     {
         return atRoot (juce::File::globalApplicationsDirectory, installRoot)

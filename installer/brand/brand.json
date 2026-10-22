@@ -1,0 +1,17 @@
+{
+  "company": "SampleRealm",
+  "colours": {
+    "background": "#0a0a0a",
+    "panel": "#201339",
+    "line": "#1f1f23",
+    "text": "#ededed",
+    "mutedText": "#a1a1aa",
+    "accent": "#be3a85",
+    "accentText": "#f472b6",
+    "highlight": "#f9a8d4"
+  },
+  "fonts": {
+    "body": "Inter-Variable.ttf",
+    "heading": "SpaceGrotesk-Variable.ttf"
+  }
+}

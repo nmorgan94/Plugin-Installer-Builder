@@ -1,6 +1,7 @@
 #!/bin/bash
 # Build the Windows .exe: CI's installer with the plugins zipped on. Prints its path.
-# Env: WINDOWS_BUILD_DIR; INSTALLER_EXE: a local installer exe instead of CI's
+# Env, optional: WINDOWS_BUILD_DIR (default plugin-binaries/Windows)
+#                INSTALLER_EXE: a local installer exe instead of CI's
 # No Mac-only tools; on Windows it needs tar.exe, as Git Bash's tar can't zip
 
 set -euo pipefail

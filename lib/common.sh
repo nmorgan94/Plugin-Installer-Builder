@@ -157,10 +157,10 @@ write_manifest() {
 
     [ ${#names[@]} -gt 0 ] || die "No plugin bundles in $dir"
 
-    jq -n --arg product "$PRODUCT_NAME" --arg vendor "$PLUGIN_VENDOR" \
+    jq -n --arg product "$PRODUCT_NAME" --arg name "$PLUGIN_NAME" --arg vendor "$PLUGIN_VENDOR" \
         --arg version "$VERSION" --arg bundleId "$BUNDLE_ID" --arg category "$CATEGORY" \
         --arg url "$PLUGIN_URL" --arg email "$PLUGIN_EMAIL" --arg copyright "$COPYRIGHT" \
-        '{schema: 1, product: $product, vendor: $vendor, version: $version, bundleId: $bundleId,
+        '{schema: 1, product: $product, name: $name, vendor: $vendor, version: $version, bundleId: $bundleId,
           category: $category, url: $url, email: $email, copyright: $copyright,
           bundles: [$ARGS.positional[] | {name: ., format: (if endswith(".vst3") then "VST3" else "AU" end)}]}' \
         --args "${names[@]}" > "$dir/installer.json"

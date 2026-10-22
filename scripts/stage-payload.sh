@@ -1,6 +1,6 @@
 #!/bin/bash
-# Copy plugin bundles from plugin-binaries/ into the payload tree.
-# Env: BUILD_DIR, PAYLOAD_DIR
+# Copy the Mac plugin bundles into the payload tree.
+# Env, optional: BUILD_DIR (default plugin-binaries/macOS)
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"

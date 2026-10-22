@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "FormatRow.h"
 #include "PluginInstaller.h"
 
 // Welcome → installing or removing → finished or failed, or one error screen if there's nothing to install
@@ -9,9 +10,10 @@ class InstallerComponent final : public juce::Component
 {
 public:
     // removeOnly: the uninstaller's screen
-    InstallerComponent (std::unique_ptr<PluginInstaller>, bool removeOnly);
-    explicit InstallerComponent (const juce::String& error);
+    InstallerComponent (const Theme&, std::unique_ptr<PluginInstaller>, bool removeOnly);
+    InstallerComponent (const Theme&, const juce::String& error);
 
+    void paint (juce::Graphics&) override;
     void resized() override;
 
     // True while installing or removing; the app mustn't quit then.
@@ -20,10 +22,11 @@ public:
 private:
     struct Row
     {
+        Row (const Theme& brand, const Manifest::Bundle& b) : bundle (b), button (brand, formatDisplayName (b.format)) {}
+
         Manifest::Bundle bundle;
         PluginInstaller::Status installStatus;
-        juce::ToggleButton toggle;
-        juce::Label status;
+        FormatRow button;
     };
 
     enum class Operation { install, remove };
@@ -42,14 +45,16 @@ private:
     void start (Operation);
     void showFinished (Operation, const std::vector<Manifest::Bundle>&);
     void showFailed (Operation, const juce::String& reason);
-    void showOnly (std::initializer_list<juce::Component*>);
+    void showOnly (const std::vector<juce::Component*>&);
 
+    const Theme& theme;
     std::unique_ptr<PluginInstaller> installer;
     const bool removeOnly = false;
     std::vector<std::unique_ptr<Row>> rows;
     bool busy = false;
 
-    juce::Label title, subtitle, message, footer;
+    // Header labels, then the current step's status and message
+    juce::Label category, title, subtitle, status, message, footer;
     juce::HyperlinkButton websiteLink;
     juce::TextButton cancelButton, actionButton, removeButton { "Remove" };
 

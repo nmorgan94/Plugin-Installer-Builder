@@ -16,7 +16,8 @@ struct Manifest
     static constexpr int supportedSchema = 1;
     static constexpr const char* fileName = "installer.json";
 
-    juce::String product, vendor, version, bundleId, category, url, email, copyright;
+    // name: the plugin's own name
+    juce::String product, name, vendor, version, bundleId, category, url, email, copyright;
     std::vector<Bundle> bundles;
 
     // Reads and validates installer.json; needBundles is false for the uninstaller

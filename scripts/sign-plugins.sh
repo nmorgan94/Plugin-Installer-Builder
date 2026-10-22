@@ -1,6 +1,6 @@
 #!/bin/bash
 # Code sign the plugin bundles staged in the payload tree.
-# Env: SIGNING_IDENTITY_APP, PAYLOAD_DIR
+# Env, required: SIGNING_IDENTITY_APP
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"

@@ -12,7 +12,7 @@ namespace platform
     // Folder a format installs into, e.g. /Library/Audio/Plug-Ins/VST3 or C:\Program Files\Common Files\VST3.
     juce::File installFolder (Manifest::Format, const juce::File& installRoot);
 
-    // Folder for the installer's log, e.g. /Library/Logs/SampleRealm or C:\ProgramData\SampleRealm\Logs.
+    // Folder for the installer's log, e.g. /Library/Logs/Acme or C:\ProgramData\Acme\Logs.
     juce::File logFolder (const juce::String& vendor, const juce::File& installRoot);
 
     // Audio Units only exist on Mac

@@ -1,5 +1,6 @@
 #!/bin/bash
 # Build a distributable installer for the plugins in plugin-binaries/.
+# Settings: none for unsigned builds; --notarize and the overrides are in README > Settings.
 #
 # Each stage lives in scripts/ and can be run on its own for debugging --
 # see ./build.sh --help.

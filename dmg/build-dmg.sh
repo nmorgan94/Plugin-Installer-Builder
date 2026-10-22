@@ -1,12 +1,39 @@
 #!/bin/bash
 # Build a distribution .dmg from the staged payload, containing the plugins
 # and an installer app that copies them into place. Prints the .dmg path.
-# Env: SIGNING_IDENTITY_APP (name and version come from the bundles)   Flags: --sign ID | --no-sign
-#      INSTALLER_APP: a local installer app instead of CI's
+# Env, optional: SIGNING_IDENTITY_APP signs the app and .dmg (or --sign ID; --no-sign skips)
+#                INSTALLER_APP: a local installer app instead of CI's
 
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
+
+LAYOUT="$REPO_ROOT/dmg/layout.json"
+
+# Lays out the DMG window without Finder; pinned, installed on first use
+DMGBUILD_PACKAGES="dmgbuild==1.6.7 ds_store==1.3.3 mac_alias==2.2.3"
+DMGBUILD_VENV="$REPO_ROOT/dmg/.venv"
+
+dmgbuild() {
+    if [ "$(cat "$DMGBUILD_VENV/packages" 2>/dev/null)" != "$DMGBUILD_PACKAGES" ]; then
+        python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null \
+            || die "dmgbuild needs Python 3.10 or newer (brew install python)"
+        log "Installing $DMGBUILD_PACKAGES..."
+        rm -rf "$DMGBUILD_VENV"
+        python3 -m venv "$DMGBUILD_VENV"
+        "$DMGBUILD_VENV/bin/pip" install --quiet --disable-pip-version-check $DMGBUILD_PACKAGES >&2
+        echo "$DMGBUILD_PACKAGES" > "$DMGBUILD_VENV/packages"
+    fi
+
+    "$DMGBUILD_VENV/bin/dmgbuild" "$@"
+}
+
+# Asks the installer app to draw background.png and @2x, labelled with its own name
+draw_background() {
+    local app="$1" out="$2"
+    "$app/Contents/MacOS/$(plist_get "$app/Contents/Info.plist" CFBundleExecutable)" \
+        --dmg-background "$out" "$(basename "$app" .app)" "$LAYOUT" >/dev/null 2>&1
+}
 
 SIGN_IDENTITY="${SIGNING_IDENTITY_APP:-}"
 case "${1:-}" in
@@ -35,7 +62,6 @@ for bundle in "$PAYLOAD_VST3_DIR"/*.vst3 "$PAYLOAD_COMPONENTS_DIR"/*.component; 
 done
 
 write_manifest "$PLUGINS_DIR"
-chflags hidden "$PLUGINS_DIR"
 
 INSTALLER_APP="${INSTALLER_APP:-$(fetch_installer macOS)}"
 [ -d "$INSTALLER_APP" ] || die "Installer app not found: $INSTALLER_APP"
@@ -48,6 +74,10 @@ plutil -replace CFBundleIdentifier -string "$BUNDLE_ID.installer" "$APP/Contents
 plutil -replace CFBundleName -string "Install $PRODUCT_NAME" "$APP/Contents/Info.plist"
 plutil -replace CFBundleDisplayName -string "Install $PRODUCT_NAME" "$APP/Contents/Info.plist"
 
+log "Drawing the window background..."
+BACKGROUND_DIR="$(mktemp -d)"
+draw_background "$APP" "$BACKGROUND_DIR" || die "The installer app couldn't draw the DMG background"
+
 if [ -n "$SIGN_IDENTITY" ]; then
     # Nested code first: the app's signature covers the signed helper inside it
     log "Signing installer app..."
@@ -57,10 +87,11 @@ if [ -n "$SIGN_IDENTITY" ]; then
 fi
 
 log "Creating disk image..."
-hdiutil create -volname "$PRODUCT_NAME" -srcfolder "$DMG_STAGING_DIR" \
-    -ov -format UDZO "$OUT_DMG" >&2
+dmgbuild -s "$REPO_ROOT/dmg/settings.py" -D staging="$DMG_STAGING_DIR" -D layout="$LAYOUT" \
+    -D background="$BACKGROUND_DIR/background.png" -D app="$(basename "$APP")" -D hidden="$DMG_PLUGINS_DIR" \
+    "$PRODUCT_NAME" "$OUT_DMG" >&2
 
-rm -rf "$DMG_STAGING_DIR"
+rm -rf "$DMG_STAGING_DIR" "$BACKGROUND_DIR"
 
 if [ -n "$SIGN_IDENTITY" ]; then
     log "Signing disk image..."

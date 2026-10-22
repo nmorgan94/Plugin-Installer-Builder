@@ -9,6 +9,7 @@ dist/*
 packages/*
 payload/*
 dmg-staging/
+dmg/.venv/
 exe-staging/
 installer-cache/
 plugin-binaries/*

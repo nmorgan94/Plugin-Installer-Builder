@@ -32,6 +32,7 @@ juce::Result Manifest::load (const juce::File& payloadDir, Manifest& result, boo
         return juce::Result::fail ("Unsupported installer.json schema: " + juce::String (schema));
 
     m.product   = json["product"].toString();
+    m.name      = json["name"].toString();
     m.vendor    = json["vendor"].toString();
     m.version   = json["version"].toString();
     m.bundleId  = json["bundleId"].toString();
@@ -42,6 +43,10 @@ juce::Result Manifest::load (const juce::File& payloadDir, Manifest& result, boo
 
     if (m.product.isEmpty() || m.version.isEmpty() || m.bundleId.isEmpty())
         return juce::Result::fail ("installer.json has no product, version or bundle ID");
+
+    // Uninstallers installed before "name" existed
+    if (m.name.isEmpty())
+        m.name = m.product;
 
     if (const auto* bundles = json["bundles"].getArray())
     {

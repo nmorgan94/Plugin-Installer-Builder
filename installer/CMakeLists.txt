@@ -7,7 +7,7 @@ set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "" FORCE)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # The installer's own version, separate from any plugin it installs
-project(SampleRealmInstaller VERSION 1.0.0)
+project(PluginInstaller VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -66,19 +66,62 @@ if(APPLE)
     )
 endif()
 
+# Brand files: brand.json, logo.svg, fonts/. Forks use their own folder
+set(INSTALLER_BRAND_DIR "${CMAKE_CURRENT_SOURCE_DIR}/brand" CACHE PATH "Brand folder")
+set(BrandJson "${INSTALLER_BRAND_DIR}/brand.json")
+
+set(BrandCompany "Plugin")
+if(EXISTS "${BrandJson}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${BrandJson}")
+    file(READ "${BrandJson}" json)
+    string(JSON company ERROR_VARIABLE jsonError GET "${json}" company)
+
+    if(NOT jsonError)
+        set(BrandCompany "${company}")
+    elseif(NOT jsonError MATCHES "not found")
+        message(FATAL_ERROR "${BrandJson}: ${jsonError}")
+    endif()
+endif()
+
+# Bundle IDs allow only letters, digits and hyphens
+string(REGEX REPLACE "[^A-Za-z0-9-]" "" BrandId "${BrandCompany}")
+if(NOT BrandId)
+    set(BrandId "Plugin")
+endif()
+
+# icon.svg is the app icon, else logo.svg, else the OS default
+set(BrandIcon)
+foreach(icon icon.svg logo.svg)
+    if(NOT BrandIcon AND EXISTS "${INSTALLER_BRAND_DIR}/${icon}")
+        set(BrandIcon ICON_BIG "${INSTALLER_BRAND_DIR}/${icon}")
+    endif()
+endforeach()
+
 juce_add_gui_app(${PROJECT_NAME}
         PRODUCT_NAME
-          SampleRealm-Installer
+          ${BrandId}-Installer
         COMPANY_NAME
-          SampleRealm
+          ${BrandCompany}
         BUNDLE_ID
-          com.SampleRealm.Installer
+          com.${BrandId}.Installer
         VERSION
           ${PROJECT_VERSION}
+        ${BrandIcon}
 )
 
 platform_sources(AppFiles "${CMAKE_CURRENT_SOURCE_DIR}/Source/app")
 target_sources(${PROJECT_NAME} PRIVATE ${AppFiles})
+
+# Built into the app, found by file name, so any font file names work
+file(GLOB_RECURSE BrandFiles CONFIGURE_DEPENDS
+    "${INSTALLER_BRAND_DIR}/*.json" "${INSTALLER_BRAND_DIR}/*.svg"
+    "${INSTALLER_BRAND_DIR}/*.ttf" "${INSTALLER_BRAND_DIR}/*.otf")
+list(FILTER BrandFiles EXCLUDE REGEX "/icon\\.svg$")
+
+if(BrandFiles)
+    juce_add_binary_data(BrandData HEADER_NAME BrandData.h NAMESPACE BrandData SOURCES ${BrandFiles})
+    target_link_libraries(${PROJECT_NAME} PRIVATE BrandData)
+endif()
 
 # Ships inside the app, which runs it as root. Its own target, so it runs every build and a
 # helper-only change still reaches the app

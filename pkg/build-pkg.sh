@@ -1,7 +1,6 @@
 #!/bin/bash
 # Build the installer .pkg from the staged payload. Prints its path.
-# Env: SIGNING_IDENTITY_INSTALLER (name, version and identifier come from the bundles)
-# Flags: --sign ID | --no-sign
+# Env, optional: SIGNING_IDENTITY_INSTALLER signs the .pkg (or --sign ID; --no-sign skips)
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"

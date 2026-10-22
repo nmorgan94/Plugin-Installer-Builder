@@ -1,6 +1,6 @@
 #!/bin/bash
 # Notarize and staple a .pkg or .dmg, then print its path:  ./scripts/notarize.sh dist/Plugin.dmg
-# Env: APPLE_ID + APPLE_TEAM_ID + APPLE_APP_PASSWORD, or KEYCHAIN_PROFILE
+# Env, required: APPLE_ID + APPLE_TEAM_ID + APPLE_APP_PASSWORD, or KEYCHAIN_PROFILE
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
