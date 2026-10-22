@@ -81,5 +81,33 @@ namespace platform
         if (killall.start ("/usr/bin/killall -9 AudioComponentRegistrar", 0))
             killall.waitForProcessToFinish (5000);
     }
+   #elif JUCE_WINDOWS
+    juce::File defaultInstallRoot()
+    {
+        return juce::File (juce::SystemStats::getEnvironmentVariable ("SystemDrive", "C:") + "\\");
+    }
+
+    // Windows has no Audio Units, so only VST3 is ever installed
+    juce::File installFolder (Manifest::Format, const juce::File& installRoot)
+    {
+        return installRoot.getChildFile ("Program Files/Common Files/VST3");
+    }
+
+    juce::File logFolder (const juce::String& vendor, const juce::File& installRoot)
+    {
+        return installRoot.getChildFile ("ProgramData").getChildFile (vendor).getChildFile ("Logs");
+    }
+
+    // Placeholders until Windows installs are written: the app builds and shows its window
+    bool hasAdminRights() { return false; }
+
+    InstallResult runHelperAsAdmin (const juce::StringArray&, const juce::String&)
+    {
+        return { InstallResult::Outcome::failed, "Installing on Windows isn't available yet." };
+    }
+
+    bool copyBundle (const juce::File&, const juce::File&) { return false; }
+    void afterInstall (const juce::File&) {}
+    void afterChanges (bool) {}
    #endif
 }

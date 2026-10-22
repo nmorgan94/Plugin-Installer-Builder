@@ -1,0 +1,47 @@
+name: Installer
+
+# Builds the generic installer app, unsigned; packaging and signing happen on the Mac.
+# Runs only when started by hand, from the Actions tab or `gh workflow run installer.yml`
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: .cpm-cache
+          key: cpm-${{ runner.os }}-${{ hashFiles('installer/CMakeLists.txt') }}
+
+      - name: Build (Release)
+        working-directory: installer
+        run: cmake --workflow --preset release
+
+      # tar keeps the app bundle's links and permissions
+      - name: Package
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS) app="SampleRealm Installer.app" ;;
+            *)     app="SampleRealm Installer.exe" ;;
+          esac
+          tar -czf "Installer-$RUNNER_OS.tar.gz" -C installer/build-release/SampleRealmInstaller_artefacts/Release "$app"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: '*.tar.gz'
+          archive: false
+          retention-days: 30
+          if-no-files-found: error

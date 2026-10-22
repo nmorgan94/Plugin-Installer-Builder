@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.25)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "" FORCE)
 set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "" FORCE)
 
+# So the exe runs on a PC without the Visual C++ runtime installed
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # The installer's own version, separate from any plugin it installs
 project(SampleRealmInstaller VERSION 1.0.0)
 
