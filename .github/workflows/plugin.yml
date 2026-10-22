@@ -1,0 +1,92 @@
+name: Build Plugin
+run-name: Build ${{ inputs.repo }} ${{ inputs.ref }}
+
+# Builds a plugin, unsigned; packaging and signing happen on the Mac.
+# Runs only when started by hand: Actions tab or `gh workflow run plugin.yml`
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: Plugin repo
+        required: true
+        type: choice
+        # Your plugin repos; GitHub refuses any other value
+        options:
+          - SampleRealm-Reverb
+      ref:
+        description: Branch or commit
+        default: main
+      platforms:
+        description: Platforms
+        type: choice
+        options: [both, macOS, Windows]
+        default: both
+      tests:
+        description: Run the tests
+        type: boolean
+        default: true
+      pluginval:
+        description: Also run pluginval (runs the tests too)
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        # Leaves out the platform not asked for
+        exclude:
+          - os: ${{ inputs.platforms == 'Windows' && 'macos-latest' || '' }}
+          - os: ${{ inputs.platforms == 'macOS' && 'windows-latest' || '' }}
+    env:
+      CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+    steps:
+      # Same owner as this repo, so a fork builds its owner's plugins
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+
+      # Keeps JUCE, pluginval and Catch2 downloads between runs, never the plugin
+      # The key changes with the plugin's VERSION too, so fall back to the last cache;
+      # CPM then downloads only what's new, e.g. after a JUCE upgrade
+      - uses: actions/cache@v6
+        with:
+          path: .cpm-cache
+          key: cpm-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/*.cmake') }}
+          restore-keys: cpm-${{ runner.os }}-
+
+      - name: Build (Release)
+        run: cmake --workflow --preset release
+
+      # Named so build.sh can tell from the run whether pluginval ran
+      - name: Tests (Release)${{ inputs.pluginval && ' + pluginval' || '' }}
+        if: inputs.tests || inputs.pluginval
+        run: cmake --workflow --preset ${{ inputs.pluginval && 'test-release' || 'unit-release' }}
+
+      # tar keeps the bundles' permissions; uploaded as-is, not zipped
+      # Named by commit, so build.sh finds a build however it was started
+      - name: Package plugins
+        shell: bash
+        run: |
+          project=$(sed -n 's/^CMAKE_PROJECT_NAME:STATIC=//p' build-release/CMakeCache.txt | tr -d '\r')
+          artefacts=build-release/${project}_artefacts/Release
+          mkdir package
+          cp -R "$artefacts"/VST3/*.vst3 package/
+          if [ "$RUNNER_OS" = macOS ]; then
+            cp -R "$artefacts"/AU/*.component package/
+          fi
+          tar -czf "${{ inputs.repo }}-$RUNNER_OS-$(git rev-parse HEAD | cut -c1-12).tar.gz" -C package .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: '*.tar.gz'
+          archive: false
+          retention-days: 30
+          if-no-files-found: error
