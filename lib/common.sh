@@ -174,14 +174,28 @@ artifact_path() {
     printf '%s/%s-%s-Installer%s.%s' "$DIST_DIR" "${PRODUCT_NAME// /-}" "$VERSION" "$suffix" "$1"
 }
 
-# gh api for this repo, so it works from any folder
-gh_api() { (cd "$REPO_ROOT" && gh api "$@"); }
+require_gh() {
+    command -v gh >/dev/null || die "gh is required for CI downloads: brew install gh, then gh auth login"
+}
+
+# gh for this repo, so it works from any folder
+gh_repo() { (cd "$REPO_ROOT" && gh "$@"); }
+gh_api() { gh_repo api "$@"; }
+
+# Unpacks a CI download (a .tar.gz, uploaded unzipped) into a new folder
+download_artifact() {
+    local artifact="$1" dir="$2"
+    rm -rf "$dir.partial"
+    mkdir -p "$dir.partial"
+    gh_api "repos/{owner}/{repo}/actions/artifacts/$artifact/zip" | tar -xzf - -C "$dir.partial" || return 1
+    mv "$dir.partial" "$dir"
+}
 
 # Prints the installer app/exe from the latest successful Installer CI run on main
 fetch_installer() {
     local platform="$1" ext=app run artifact dir found
     [ "$platform" = macOS ] || ext=exe
-    command -v gh >/dev/null || die "gh is required to download the installer: brew install gh, then gh auth login"
+    require_gh
 
     # GitHub's branch/status filters sometimes return nothing
     run="$(gh_api "repos/{owner}/{repo}/actions/workflows/installer.yml/runs?per_page=100" \
@@ -196,11 +210,7 @@ fetch_installer() {
         [ -n "$artifact" ] || die "Installer CI run $run's files have expired. Start a new run: gh workflow run installer.yml"
 
         log "Downloading the $platform installer from Installer CI run $run..."
-        rm -rf "$dir.partial"
-        mkdir -p "$dir.partial"
-        gh_api "repos/{owner}/{repo}/actions/artifacts/$artifact/zip" | tar -xzf - -C "$dir.partial" ||
-            die "couldn't download the $platform installer"
-        mv "$dir.partial" "$dir"
+        download_artifact "$artifact" "$dir" || die "couldn't download the $platform installer"
 
         # Keep only this run's downloads
         find "$INSTALLER_CACHE_DIR" -mindepth 1 -maxdepth 1 ! -name "$run" -exec rm -rf {} +
@@ -210,6 +220,65 @@ fetch_installer() {
     found=("$dir"/*."$ext")
     [ ${#found[@]} -eq 1 ] && [ -e "${found[0]}" ] || die "Installer CI run $run's download has no single .$ext"
     echo "${found[0]}"
+}
+
+# Prints "<artifact> <run>": the newest CI build of <repo> <platform> <commit>
+plugin_artifact() {
+    gh_api "repos/{owner}/{repo}/actions/artifacts?name=$1-$2-${3:0:12}.tar.gz" \
+        --jq '[.artifacts[] | select(.expired | not)][0] // empty | "\(.id) \(.workflow_run.id)"'
+}
+
+# Downloads <repo>'s main from CI for each platform, building it if needed
+# Sets PLUGIN_COMMIT, BUILD_DIR, WINDOWS_BUILD_DIR and PLUGIN_DOWNLOAD_DIR
+fetch_plugin() {
+    local repo="$1" platform missing=() platforms before run found
+    shift
+    require_gh
+    [[ "$repo" =~ ^[A-Za-z0-9._-]+$ ]] || die "not a repo name: $repo"
+
+    PLUGIN_COMMIT="$(gh_api "repos/{owner}/$repo/commits/main" --jq .sha)" ||
+        die "couldn't find $repo's main branch on GitHub"
+    log "$repo main is at ${PLUGIN_COMMIT:0:12}"
+
+    for platform in "$@"; do
+        [ -n "$(plugin_artifact "$repo" "$platform" "$PLUGIN_COMMIT")" ] || missing+=("$platform")
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        platforms="${missing[0]}"
+        [ ${#missing[@]} -eq 1 ] || platforms=both
+        before="$(gh_api "repos/{owner}/{repo}/actions/workflows/plugin.yml/runs?per_page=1" --jq '.workflow_runs[0].id // 0')" ||
+            die "couldn't list the Build Plugin runs (try: gh auth login)"
+        gh_repo workflow run plugin.yml -f repo="$repo" -f ref="$PLUGIN_COMMIT" -f platforms="$platforms" >&2 ||
+            die "couldn't start a CI build of $repo"
+
+        # GitHub takes a few seconds to list a new run; a failed check just tries again
+        run=""
+        for _ in $(seq 20); do
+            sleep 3
+            run="$(gh_api "repos/{owner}/{repo}/actions/workflows/plugin.yml/runs?per_page=10" \
+                --jq "[.workflow_runs[] | select(.id > $before and .display_title == \"Build $repo $PLUGIN_COMMIT\")][0].id // empty")" ||
+                run=""
+            [ -z "$run" ] || break
+        done
+        [ -n "$run" ] || die "started a CI build of $repo but can't find it: gh run list --workflow plugin.yml"
+
+        log "Building ${missing[*]} in CI run $run (takes a while)..."
+        gh_repo run watch "$run" --exit-status --interval 15 >&2 ||
+            die "CI run $run failed: $(gh_api "repos/{owner}/{repo}/actions/runs/$run" --jq .html_url)"
+    fi
+
+    PLUGIN_DOWNLOAD_DIR="$(mktemp -d)"
+    for platform in "$@"; do
+        found="$(plugin_artifact "$repo" "$platform" "$PLUGIN_COMMIT")"
+        [ -n "$found" ] || die "no $platform build of $repo ${PLUGIN_COMMIT:0:12} in CI"
+        log "Downloading the $platform build from CI run ${found#* }..."
+        download_artifact "${found% *}" "$PLUGIN_DOWNLOAD_DIR/$platform" ||
+            die "couldn't download $repo's $platform build"
+    done
+    # Both, even if one wasn't fetched, so it never mixes with plugin-binaries/
+    BUILD_DIR="$PLUGIN_DOWNLOAD_DIR/macOS"
+    WINDOWS_BUILD_DIR="$PLUGIN_DOWNLOAD_DIR/Windows"
 }
 
 # The flags notarisation requires

@@ -13,6 +13,10 @@ on:
         # Your plugin repos; GitHub refuses any other value
         options:
           - SampleRealm-Reverb
+          - SampleRealm-Modulate
+          - SampleRealm-Reese
+          - SampleRealm-Sub
+          - SampleRealm-Drums
       ref:
         description: Branch or commit
         default: main
@@ -65,8 +69,7 @@ jobs:
       - name: Build (Release)
         run: cmake --workflow --preset release
 
-      # Named so build.sh can tell from the run whether pluginval ran
-      - name: Tests (Release)${{ inputs.pluginval && ' + pluginval' || '' }}
+      - name: Tests (Release)
         if: inputs.tests || inputs.pluginval
         run: cmake --workflow --preset ${{ inputs.pluginval && 'test-release' || 'unit-release' }}
 

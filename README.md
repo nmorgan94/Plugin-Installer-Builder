@@ -45,8 +45,6 @@ Unsigned `--dmg`, `--pkg` and `--exe` builds need no settings. Everything else i
 |---|---|---|
 | `INSTALLER_APP` | `--dmg` | Uses this installer app instead of CI's, e.g. your own build of `installer/` |
 | `INSTALLER_EXE` | `--exe` | The same for Windows |
-| `BUILD_DIR` | `--dmg`, `--pkg` | Mac plugins from this folder instead of `plugin-binaries/macOS` |
-| `WINDOWS_BUILD_DIR` | `--exe` | Windows plugins from this folder instead of `plugin-binaries/Windows` |
 
 ```bash
 INSTALLER_APP=installer/build-release/PluginInstaller_artefacts/Release/Acme-Installer.app ./build.sh --dmg
