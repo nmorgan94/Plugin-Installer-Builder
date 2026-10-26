@@ -139,6 +139,7 @@ read_payload_metadata() {
 artifact_path() {
     local suffix="-not-notarized"
     [ -n "$2" ] || suffix="-unsigned"
+    [ "$1" != exe ] || suffix=""  # Never signed, so nothing to tell apart, and users see the name
     printf '%s/%s-%s-Installer%s.%s' "$OUTPUT_DIR" "${PRODUCT_NAME// /-}" "$VERSION" "$suffix" "$1"
 }
 
@@ -162,7 +163,7 @@ download_artifact() {
 # Starts <workflow> on main and waits for it to pass; sets WORKFLOW_RUN. <title> picks out the new
 # run, any if empty
 run_workflow() {
-    local workflow="$1" what="$2" title="$3" before run=""
+    local workflow="$1" what="$2" title="$3" before run="" conclusion=""
     shift 3
     before="$(gh_api "repos/{owner}/{repo}/actions/workflows/$workflow/runs?per_page=1" --jq '.workflow_runs[0].id // 0')" ||
         die "couldn't list the $workflow runs (try: gh auth login)"
@@ -179,8 +180,15 @@ run_workflow() {
     [ -n "$run" ] || die "started a CI build of $what but can't find it: gh run list --workflow $workflow"
 
     log "Building $what in CI run $run (takes a while)..."
-    gh_repo run watch "$run" --exit-status --interval 15 >&2 ||
-        die "CI run $run failed: $(gh_api "repos/{owner}/{repo}/actions/runs/$run" --jq .html_url)"
+    # The watch also stops on GitHub API errors, so it's retried and the run's own result decides
+    for _ in $(seq 10); do
+        gh_repo run watch "$run" --interval 15 >&2 || sleep 15
+        conclusion="$(gh_api "repos/{owner}/{repo}/actions/runs/$run" --jq 'select(.status == "completed") | .conclusion')" ||
+            conclusion=""
+        [ -z "$conclusion" ] || break
+    done
+    [ "$conclusion" = success ] ||
+        die "CI run $run ${conclusion:-never finished}: $(gh_api "repos/{owner}/{repo}/actions/runs/$run" --jq .html_url)"
     WORKFLOW_RUN="$run"
 }
 

@@ -15,8 +15,9 @@ source .env && ./build.sh --dmg --notarize                          # signed and
 ./build.sh --exe                                                    # Windows installer (unsigned)
 ```
 
-Output goes to `packaging/output/<Product-Name>-<version>-Installer.<dmg|exe>`. Only a notarised, stapled build
-gets that plain name; otherwise it ends in `-unsigned` or `-not-notarized`. The name, version and
+Output goes to `packaging/output/<Product-Name>-<version>-Installer.<dmg|exe>`. A Mac build gets that plain
+name only once notarised and stapled; otherwise it ends in `-unsigned` or `-not-notarized`. The .exe
+always has the plain name. The name, version and
 bundle ID are read from the plugin bundles, so change them in the plugin's CMake.
 
 The installer app comes from this repo's latest successful Installer CI run on `main`, unless you

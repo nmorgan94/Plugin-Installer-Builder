@@ -24,7 +24,7 @@ usage() {
     echo "                     package that, instead of packaging/input/"
     echo ""
     echo "The product name, version and bundle ID are read from the plugin bundles."
-    echo "Output: packaging/output/<Product-Name>-<version>-Installer.<ext>; -unsigned without --notarize, -not-notarized until stapled."
+    echo "Output: packaging/output/<Product-Name>-<version>-Installer.<ext>; Mac output ends -unsigned without --notarize, -not-notarized until stapled."
     echo ""
     echo "A notarized .pkg needs a Developer ID Installer certificate."
     echo "A notarized .dmg needs only a Developer ID Application certificate,"
