@@ -66,7 +66,7 @@ write_manifest "$PLUGINS_DIR"
 INSTALLER_APP="${INSTALLER_APP:-$(fetch_installer macOS)}"
 [ -d "$INSTALLER_APP" ] || die "Installer app not found: $INSTALLER_APP"
 
-APP="$DMG_STAGING_DIR/Install $PRODUCT_NAME.app"
+APP="$DMG_STAGING_DIR/Install $PLUGIN_NAME.app"
 ditto "$INSTALLER_APP" "$APP"
 
 # Each product's installer gets its own identity, so macOS and the password prompt name the product
