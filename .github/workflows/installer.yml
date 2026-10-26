@@ -1,7 +1,7 @@
 name: Installer
 
 # Builds the generic installer app, unsigned; packaging and signing happen on the Mac.
-# Runs only when started by hand, from the Actions tab or `gh workflow run installer.yml`
+# build.sh starts it when installer/ has changed since the last run; or start it from the Actions tab
 on:
   workflow_dispatch:
 

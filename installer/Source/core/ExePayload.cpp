@@ -91,4 +91,39 @@ namespace exePayload
         out.flush();
         return out.getStatus().wasOk();
     }
+
+    juce::Result append (const juce::File& installer, const juce::File& folder, const juce::File& output)
+    {
+        juce::ZipFile::Builder zip;
+        int files = 0;
+
+        for (const auto& entry : juce::RangedDirectoryIterator (folder, true, "*", juce::File::findFiles))
+        {
+            const auto& file = entry.getFile();
+            zip.addFile (file, 9, file.getRelativePathFrom (folder).replaceCharacter ('\\', '/'));
+            ++files;
+        }
+
+        if (files == 0)
+            return juce::Result::fail ("Nothing to add in " + folder.getFullPathName());
+
+        if (! installer.copyFileTo (output))
+            return juce::Result::fail ("Couldn't copy " + installer.getFullPathName() + " to " + output.getFullPathName());
+
+        // Opens at the end, after the installer
+        juce::FileOutputStream out (output);
+        if (! out.openedOk())
+            return juce::Result::fail ("Couldn't write " + output.getFullPathName());
+
+        // Zip offsets are relative to the zip's start, as find() expects
+        const auto zipStart = out.getPosition();
+        if (! zip.writeToStream (out, nullptr))
+            return juce::Result::fail ("Couldn't zip " + folder.getFullPathName());
+
+        const auto zipSize = out.getPosition() - zipStart;
+        out << magic << juce::String::toHexString (zipSize).paddedLeft ('0', sizeDigits);
+        out.flush();
+
+        return out.getStatus().wasOk() ? juce::Result::ok() : juce::Result::fail ("Couldn't write " + output.getFullPathName());
+    }
 }

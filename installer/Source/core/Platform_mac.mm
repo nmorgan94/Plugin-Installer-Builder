@@ -16,13 +16,6 @@ namespace
     {
         return "\"" + text.replace ("\\", "\\\\").replace ("\"", "\\\"") + "\"";
     }
-
-    // Copied into the app bundle by CMake
-    juce::File helperExecutable()
-    {
-        return juce::File::getSpecialLocation (juce::File::currentApplicationFile)
-            .getChildFile ("Contents/Helpers/InstallerHelper");
-    }
 }
 
 namespace platform
@@ -61,12 +54,10 @@ namespace platform
     // JUCE has no admin-rights API; AppleScript's "with administrator privileges" prompt names this app
     InstallResult runHelperAsAdmin (const juce::StringArray& helperArgs, const juce::String& prompt)
     {
-        const auto helper = helperExecutable();
+        // The app itself, which runs commands before any UI starts
+        const auto self = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
 
-        if (! helper.existsAsFile())
-            return { InstallResult::Outcome::failed, "This installer is incomplete (InstallerHelper is missing)." };
-
-        juce::StringArray quoted { shellQuote (helper.getFullPathName()) };
+        juce::StringArray quoted { shellQuote (self.getFullPathName()) };
         for (const auto& arg : helperArgs)
             quoted.add (shellQuote (arg));
 
@@ -94,12 +85,14 @@ namespace platform
             if ([[error objectForKey: NSAppleScriptErrorNumber] intValue] == -128)
                 return { InstallResult::Outcome::cancelled, {} };
 
-            // The helper's error output, e.g. "Couldn't copy Reverb.vst3 to ..."
+            // The command's error output, e.g. "Couldn't copy Reverb.vst3 to ..."
             const auto* text = (NSString*) [error objectForKey: NSAppleScriptErrorMessage];
             return { InstallResult::Outcome::failed,
                      text != nil ? juce::String::fromUTF8 ([text UTF8String]) : juce::String ("Unknown error") };
         }
     }
+
+    void useBinaryOutput() {}
 
     // Safe to replace: a DAW keeps the old copy until it restarts
     juce::StringArray appsUsing (const juce::File&)

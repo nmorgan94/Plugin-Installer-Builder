@@ -1,67 +1,7 @@
 #include "PluginInstaller.h"
 #include "Platform.h"
+#include "PluginBundle.h"
 #include "Version.h"
-
-namespace
-{
-    // Steinberg's moduleinfo.json allows trailing commas, which juce::JSON rejects
-    juce::String withoutTrailingCommas (const juce::String& text)
-    {
-        juce::String result;
-        bool inString = false, escaped = false;
-
-        for (int i = 0; i < text.length(); ++i)
-        {
-            const auto c = text[i];
-
-            if (inString)
-            {
-                if (escaped)        escaped = false;
-                else if (c == '\\') escaped = true;
-                else if (c == '"')  inString = false;
-            }
-            else if (c == '"')
-            {
-                inString = true;
-            }
-            else if (c == ',')
-            {
-                auto next = i + 1;
-                while (next < text.length() && juce::CharacterFunctions::isWhitespace (text[next]))
-                    ++next;
-
-                if (next < text.length() && (text[next] == '}' || text[next] == ']'))
-                    continue;
-            }
-
-            result += c;
-        }
-
-        return result;
-    }
-
-    // VST3s carry moduleinfo.json on every platform; Audio Units only have Info.plist
-    juce::String bundleVersion (const juce::File& bundle)
-    {
-        const auto moduleInfo = bundle.getChildFile ("Contents/Resources/moduleinfo.json");
-        juce::var json;
-
-        if (moduleInfo.existsAsFile()
-            && juce::JSON::parse (withoutTrailingCommas (moduleInfo.loadFileAsString()), json).wasOk()
-            && json["Version"].toString().isNotEmpty())
-            return json["Version"].toString();
-
-        // JUCE writes Info.plist as XML
-        if (const auto plist = juce::parseXML (bundle.getChildFile ("Contents/Info.plist")))
-            if (const auto* dict = plist->getChildByName ("dict"))
-                for (const auto* key : dict->getChildWithTagNameIterator ("key"))
-                    if (key->getAllSubText() == "CFBundleShortVersionString")
-                        if (const auto* value = key->getNextElement())
-                            return value->getAllSubText().trim();
-
-        return {};
-    }
-}
 
 PluginInstaller::PluginInstaller (Manifest m, juce::File payload, juce::File root)
     : manifest (std::move (m)), payloadDir (std::move (payload)), installRoot (std::move (root))
@@ -81,7 +21,7 @@ PluginInstaller::Status PluginInstaller::status (const Manifest::Bundle& bundle)
     if (! location.isDirectory())
         return {};
 
-    const auto installed = bundleVersion (location);
+    const auto installed = PluginBundle::installedVersion (location);
     if (installed.isEmpty())
         return { State::unknownVersion, {} };
 
@@ -113,7 +53,7 @@ InstallResult PluginInstaller::uninstall (const std::vector<Manifest::Bundle>& b
     return platform::hasAdminRights() ? uninstallHere (bundles) : runAsAdmin ("uninstall", bundles, "remove");
 }
 
-// Hands the work to InstallerHelper, run with admin rights
+// Hands the work to a copy of this app run with admin rights; see CommandLine.h
 InstallResult PluginInstaller::runAsAdmin (const juce::String& command, const std::vector<Manifest::Bundle>& bundles,
                                            const juce::String& action) const
 {

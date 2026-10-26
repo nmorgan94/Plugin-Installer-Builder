@@ -5,14 +5,13 @@
 .vscode/
 
 # Build artifacts
-dist/*
-packages/*
-payload/*
-dmg-staging/
 dmg/.venv/
-exe-staging/
-installer-cache/
-plugin-binaries/*
 installer/build-*/
+
+# Build input, output and working folders; the empty input folders stay for copying plugins into
+packaging/*
+!packaging/input/
+packaging/input/*/*
+!packaging/input/*/.gitkeep
 
 .env

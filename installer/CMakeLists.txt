@@ -52,20 +52,6 @@ target_sources(InstallerCore INTERFACE ${CoreFiles})
 target_include_directories(InstallerCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/Source/core")
 target_link_libraries(InstallerCore INTERFACE juce::juce_core)
 
-# Mac only: the app runs it as root, and it's a test CLI
-# Links only juce_core, so UI code in core/ fails to build
-if(APPLE)
-    juce_add_console_app(InstallerHelper PRODUCT_NAME "InstallerHelper")
-    target_sources(InstallerHelper PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source/helper/Main.cpp")
-    target_link_libraries(InstallerHelper
-        PRIVATE
-            InstallerCore
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_warning_flags
-    )
-endif()
-
 # Brand files: brand.json, logo.svg, fonts/. Forks use their own folder
 set(INSTALLER_BRAND_DIR "${CMAKE_CURRENT_SOURCE_DIR}/brand" CACHE PATH "Brand folder")
 set(BrandJson "${INSTALLER_BRAND_DIR}/brand.json")
@@ -121,16 +107,6 @@ list(FILTER BrandFiles EXCLUDE REGEX "/icon\\.svg$")
 if(BrandFiles)
     juce_add_binary_data(BrandData HEADER_NAME BrandData.h NAMESPACE BrandData SOURCES ${BrandFiles})
     target_link_libraries(${PROJECT_NAME} PRIVATE BrandData)
-endif()
-
-# Ships inside the app, which runs it as root. Its own target, so it runs every build and a
-# helper-only change still reaches the app
-if(APPLE)
-    add_custom_target(HelperInApp ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:${PROJECT_NAME}>/Helpers"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:InstallerHelper>" "$<TARGET_BUNDLE_CONTENT_DIR:${PROJECT_NAME}>/Helpers/"
-        VERBATIM)
-    add_dependencies(HelperInApp ${PROJECT_NAME} InstallerHelper)
 endif()
 
 target_compile_definitions(${PROJECT_NAME}

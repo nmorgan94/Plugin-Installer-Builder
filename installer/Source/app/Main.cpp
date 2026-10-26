@@ -1,7 +1,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "BrandLookAndFeel.h"
-#include "HelperCommand.h"
+#include "CommandLine.h"
 #include "InstallerComponent.h"
 #include "Payload.h"
 #include "Platform.h"
@@ -13,11 +13,6 @@
 
 namespace
 {
-    bool isHelperRun (const juce::StringArray& args)
-    {
-        return args.size() >= 2 && args[0] == commandLine::helper;
-    }
-
     // Packaging: --dmg-background <folder> <label> <layout.json>, run by dmg/build-dmg.sh
     bool isDmgBackgroundRun (const juce::StringArray& args)
     {
@@ -76,25 +71,16 @@ public:
 
     const juce::String getApplicationVersion() override { return JUCE_APPLICATION_VERSION_STRING; }
     // JUCE's lock is keyed on the name above, so different products' installers can still run together
-    // The helper run, Uninstall.exe and packaging skip it
+    // Uninstall.exe and packaging skip it
     bool moreThanOneInstanceAllowed() override
     {
         const auto args = getCommandLineParameterArray();
-        return isHelperRun (args) || args.contains (commandLine::uninstall) || isDmgBackgroundRun (args);
+        return args.contains (commandLine::uninstall) || isDmgBackgroundRun (args);
     }
 
     void initialise (const juce::String&) override
     {
         const auto args = getCommandLineParameterArray();
-
-        if (isHelperRun (args))
-        {
-            const auto result = runHelperCommand (juce::StringArray (args.begin() + 2, args.size() - 2));
-            juce::File (args[1]).replaceWithText (result.message);
-            setApplicationReturnValue (result.outcome == InstallResult::Outcome::done ? 0 : 1);
-            quit();
-            return;
-        }
 
         theme = std::make_unique<Theme> (Theme::load());
         lookAndFeel = std::make_unique<BrandLookAndFeel> (*theme);
@@ -137,7 +123,7 @@ public:
 
     void shutdown() override
     {
-        // However the window was closed; not after a helper or packaging run
+        // However the window was closed; not after a packaging run
         if (mainWindow != nullptr)
             releasePayload();
 
@@ -163,4 +149,23 @@ private:
     std::unique_ptr<MainWindow> mainWindow;
 };
 
-START_JUCE_APPLICATION (InstallerApplication)
+JUCE_CREATE_APPLICATION_DEFINE (InstallerApplication)
+
+// START_JUCE_APPLICATION's entry point, but commands run first, without starting the app: the Mac
+// install as root shows no Dock icon, and the packaging scripts use them on both OSes
+JUCE_MAIN_FUNCTION
+{
+   #if JUCE_WINDOWS
+    const auto args = juce::JUCEApplicationBase::getCommandLineParameterArray();
+   #else
+    juce::StringArray args;
+    for (int i = 1; i < argc; ++i)
+        args.add (juce::String::fromUTF8 (argv[i]));
+   #endif
+
+    if (const auto exitCode = runCommandLine (args))
+        return *exitCode;
+
+    juce::JUCEApplicationBase::createInstance = &juce_CreateApplication;
+    return juce::JUCEApplicationBase::main (JUCE_MAIN_FUNCTION_ARGS);
+}

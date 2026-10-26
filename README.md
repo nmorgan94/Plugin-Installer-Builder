@@ -1,25 +1,29 @@
 # Plugin Installer Builder
 
-Turns VST3 and Audio Unit plugin builds into installers for macOS and Windows, all from a Mac. The
-`.dmg` and `.exe` hold the plugins and a JUCE installer app (`installer/`) that installs or removes
-them, asking for admin rights when needed. A `.pkg` is also supported.
+Turns VST3 and Audio Unit plugin builds into installers for macOS and Windows, from a Mac; the
+Windows `.exe` can also be built on Windows, in Git Bash. The `.dmg` and `.exe` hold the plugins and
+a JUCE installer app (`installer/`) that installs or removes them, asking for admin rights when
+needed. A `.pkg` is also supported.
 
 ## Use
 
 ```bash
-cp -R YourPlugin.vst3 YourPlugin.component plugin-binaries/macOS/   # empty these first between plugins
-cp -R YourPlugin.vst3 plugin-binaries/Windows/                      # the Windows build
+cp -R YourPlugin.vst3 YourPlugin.component packaging/input/macOS/   # empty these first between plugins
+cp -R YourPlugin.vst3 packaging/input/Windows/                      # the Windows build
 ./build.sh --dmg                                                    # unsigned, for testing
 source .env && ./build.sh --dmg --notarize                          # signed and notarised, to ship
 ./build.sh --exe                                                    # Windows installer (unsigned)
 ```
 
-Output goes to `dist/<Product-Name>-<version>-Installer.<dmg|exe>`. Only a notarised, stapled build
+Output goes to `packaging/output/<Product-Name>-<version>-Installer.<dmg|exe>`. Only a notarised, stapled build
 gets that plain name; otherwise it ends in `-unsigned` or `-not-notarized`. The name, version and
 bundle ID are read from the plugin bundles, so change them in the plugin's CMake.
 
-The installer app comes from this repo's latest successful Installer CI run on `main`
-(`gh workflow run installer.yml`), unless you point the build at your own (see Settings).
+The installer app comes from this repo's latest successful Installer CI run on `main`, unless you
+point the build at your own (see Settings). If `installer/` has changed since that run, or its files
+have expired (after 30 days), `build.sh` starts a new run and waits for it. Push installer changes
+first: CI builds what's on GitHub. Every build needs the app, `--pkg` included: its commands read the
+plugin bundles and write the `.exe`. For debugging, `<app>/Contents/MacOS/<name> --help` lists them.
 
 ```bash
 ./build.sh --pkg [--notarize]   # .pkg; notarising needs a Developer ID Installer certificate
@@ -43,7 +47,7 @@ Unsigned `--dmg`, `--pkg` and `--exe` builds need no settings. Everything else i
 
 | Setting | Use with | What it does |
 |---|---|---|
-| `INSTALLER_APP` | `--dmg` | Uses this installer app instead of CI's, e.g. your own build of `installer/` |
+| `INSTALLER_APP` | any build on a Mac | Uses this installer app instead of CI's, e.g. your own build of `installer/` |
 | `INSTALLER_EXE` | `--exe` | The same for Windows |
 
 ```bash
@@ -56,8 +60,8 @@ Rebranding.
 ## Verify a release
 
 ```bash
-xcrun stapler validate dist/<file>.dmg
-spctl -a -vv -t open --context context:primary-signature dist/<file>.dmg
+xcrun stapler validate packaging/output/<file>.dmg
+spctl -a -vv -t open --context context:primary-signature packaging/output/<file>.dmg
 ```
 
 Expect `accepted` and `source=Notarized Developer ID`.
@@ -94,7 +98,8 @@ cmake --build --preset release
 
 ## Requirements
 
-- Xcode Command Line Tools, `jq` (included with macOS 15+) and `gh`, signed in (`gh auth login`)
+- Xcode Command Line Tools and `gh`, signed in (`gh auth login`)
+- To build the `.exe` on Windows instead: Git Bash and `gh`, signed in
 - CMake 3.25+, only to build `installer/` yourself
 - Universal (`x86_64` + `arm64`) plugin binaries; the build refuses anything else
 - A Developer ID Application certificate, for `--notarize`

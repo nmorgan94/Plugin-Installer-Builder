@@ -1,5 +1,5 @@
 #!/bin/bash
-# Notarize and staple a .pkg or .dmg, then print its path:  ./scripts/notarize.sh dist/Plugin.dmg
+# Notarize and staple a .pkg or .dmg, then print its path:  ./scripts/notarize.sh packaging/output/Plugin.dmg
 # Env, required: APPLE_ID + APPLE_TEAM_ID + APPLE_APP_PASSWORD, or KEYCHAIN_PROFILE
 set -euo pipefail
 

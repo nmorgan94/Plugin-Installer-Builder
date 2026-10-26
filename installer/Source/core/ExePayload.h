@@ -2,7 +2,7 @@
 
 #include <juce_core/juce_core.h>
 
-// Plugins zipped onto the Windows installer by exe/build-exe.sh:
+// Plugins zipped onto the Windows installer by append(), at packaging time:
 // <exe><zip>PluginPayload1 <zip size, 16 hex digits>[signature]
 namespace exePayload
 {
@@ -18,4 +18,7 @@ namespace exePayload
 
     // For the uninstaller
     bool copyWithoutPayload (const juce::File& exe, const juce::File& destination);
+
+    // Packaging: writes the installer with the folder zipped on to output
+    juce::Result append (const juce::File& installer, const juce::File& folder, const juce::File& output);
 }

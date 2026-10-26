@@ -1,9 +1,6 @@
 #!/bin/bash
-# Build installers from plugin-binaries/, or from a plugin repo built in CI.
-# Settings: none for unsigned builds; --notarize and the overrides are in README > Settings.
-#
-# Each stage lives in scripts/ and can be run on its own for debugging --
-# see ./build.sh --help.
+# Build installers from packaging/input/, or from a plugin repo built in CI.
+# Settings are in the README; ./build.sh --help lists the stages, which also run on their own.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,10 +21,10 @@ usage() {
     echo "  --exe              Build a Windows .exe installer; can go with --pkg or --dmg"
     echo "  --notarize         Sign and notarize the Mac output (distribution)"
     echo "  --plugin <repo>    Build the plugin repo's main in CI (Build Plugin workflow) and"
-    echo "                     package that, instead of plugin-binaries/"
+    echo "                     package that, instead of packaging/input/"
     echo ""
     echo "The product name, version and bundle ID are read from the plugin bundles."
-    echo "Output: dist/<Product-Name>-<version>-Installer.<ext>; -unsigned without --notarize, -not-notarized until stapled."
+    echo "Output: packaging/output/<Product-Name>-<version>-Installer.<ext>; -unsigned without --notarize, -not-notarized until stapled."
     echo ""
     echo "A notarized .pkg needs a Developer ID Installer certificate."
     echo "A notarized .dmg needs only a Developer ID Application certificate,"
@@ -115,7 +112,10 @@ if [ -n "$PLUGIN_REPO" ]; then
     fetch_plugin "$PLUGIN_REPO" "${PLATFORMS[@]}"
 fi
 
-export BUILD_DIR WINDOWS_BUILD_DIR PAYLOAD_DIR PACKAGES_DIR DIST_DIR DMG_STAGING_DIR EXE_STAGING_DIR
+# Once, so every stage uses the same installer app
+find_installer_tool
+
+export MAC_PLUGINS_DIR WINDOWS_PLUGINS_DIR OUTPUT_DIR
 
 RESULTS=()
 
@@ -126,7 +126,7 @@ if [ -n "$MAC_FORMAT" ]; then
     if [ "$BUILD_EXE" = true ]; then
         read_payload_metadata
         MAC_BUILD="$PRODUCT_NAME $VERSION ($BUNDLE_ID)"
-        read_plugin_metadata "$WINDOWS_BUILD_DIR"/*.vst3
+        read_info info "$WINDOWS_PLUGINS_DIR"/*.vst3
         WINDOWS_BUILD="$PRODUCT_NAME $VERSION ($BUNDLE_ID)"
         [ "$MAC_BUILD" = "$WINDOWS_BUILD" ] || die "the Mac build is $MAC_BUILD but the Windows build is $WINDOWS_BUILD"
     fi

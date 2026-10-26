@@ -23,8 +23,11 @@ namespace platform
     // What to tell the user while the admin prompt is up
     juce::String adminPromptHint();
 
-    // Runs the helper command as admin; see HelperCommand.h
+    // Runs this executable's helper command as admin; see CommandLine.h
     InstallResult runHelperAsAdmin (const juce::StringArray& helperArgs, const juce::String& prompt);
+
+    // Plain \n line endings for the scripts reading a command's output; nothing on Mac
+    void useBinaryOutput();
 
     // Apps with the bundle open, e.g. "Ableton Live 12"; always empty on Mac
     juce::StringArray appsUsing (const juce::File& bundle);

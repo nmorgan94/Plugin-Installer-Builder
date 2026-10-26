@@ -17,9 +17,8 @@ esac
 read_payload_metadata
 [ -f "$DISTRIBUTION_TEMPLATE" ] || die "Template not found: $DISTRIBUTION_TEMPLATE"
 
-mkdir -p "$PACKAGES_DIR" "$DIST_DIR"
+mkdir -p "$PACKAGES_DIR" "$OUTPUT_DIR"
 
-# Render the template.
 RENDERED="$PACKAGES_DIR/distribution.xml"
 XML="$(cat "$DISTRIBUTION_TEMPLATE")"
 XML="${XML//\$\{PRODUCT_NAME\}/$(xml_escape "$PRODUCT_NAME")}"

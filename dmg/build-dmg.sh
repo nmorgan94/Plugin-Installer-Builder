@@ -28,11 +28,9 @@ dmgbuild() {
     "$DMGBUILD_VENV/bin/dmgbuild" "$@"
 }
 
-# Asks the installer app to draw background.png and @2x, labelled with its own name
+# Asks the installer app to draw background.png and @2x into <folder>, with <label> under the icon
 draw_background() {
-    local app="$1" out="$2"
-    "$app/Contents/MacOS/$(plist_get "$app/Contents/Info.plist" CFBundleExecutable)" \
-        --dmg-background "$out" "$(basename "$app" .app)" "$LAYOUT" >/dev/null 2>&1
+    "$INSTALLER_TOOL" --dmg-background "$1" "$2" "$LAYOUT" >/dev/null 2>&1
 }
 
 SIGN_IDENTITY="${SIGNING_IDENTITY_APP:-}"
@@ -44,10 +42,6 @@ case "${1:-}" in
 esac
 
 [ -d "$PAYLOAD_DIR" ] || die "Payload not found. Run scripts/stage-payload.sh first."
-read_payload_metadata
-
-OUT_DMG="$(artifact_path dmg "$SIGN_IDENTITY")"
-mkdir -p "$DIST_DIR"
 
 log "Preparing disk image contents..."
 rm -rf "$DMG_STAGING_DIR"
@@ -61,10 +55,9 @@ for bundle in "$PAYLOAD_VST3_DIR"/*.vst3 "$PAYLOAD_COMPONENTS_DIR"/*.component; 
     cp -R "$bundle" "$PLUGINS_DIR/"
 done
 
-write_manifest "$PLUGINS_DIR"
-
-INSTALLER_APP="${INSTALLER_APP:-$(fetch_installer macOS)}"
-[ -d "$INSTALLER_APP" ] || die "Installer app not found: $INSTALLER_APP"
+read_info manifest "$PLUGINS_DIR"
+OUT_DMG="$(artifact_path dmg "$SIGN_IDENTITY")"
+mkdir -p "$OUTPUT_DIR"
 
 APP="$DMG_STAGING_DIR/Install $PLUGIN_NAME.app"
 ditto "$INSTALLER_APP" "$APP"
@@ -76,12 +69,10 @@ plutil -replace CFBundleDisplayName -string "Install $PRODUCT_NAME" "$APP/Conten
 
 log "Drawing the window background..."
 BACKGROUND_DIR="$(mktemp -d)"
-draw_background "$APP" "$BACKGROUND_DIR" || die "The installer app couldn't draw the DMG background"
+draw_background "$BACKGROUND_DIR" "$(basename "$APP" .app)" || die "The installer app couldn't draw the DMG background"
 
 if [ -n "$SIGN_IDENTITY" ]; then
-    # Nested code first: the app's signature covers the signed helper inside it
     log "Signing installer app..."
-    sign_code "$SIGN_IDENTITY" "$APP/Contents/Helpers/InstallerHelper"
     sign_code "$SIGN_IDENTITY" "$APP"
     codesign --verify --strict --deep "$APP" >&2
 fi

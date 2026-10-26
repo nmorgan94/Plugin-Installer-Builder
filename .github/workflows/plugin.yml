@@ -57,9 +57,8 @@ jobs:
           repository: ${{ github.repository_owner }}/${{ inputs.repo }}
           ref: ${{ inputs.ref }}
 
-      # Keeps JUCE, pluginval and Catch2 downloads between runs, never the plugin
-      # The key changes with the plugin's VERSION too, so fall back to the last cache;
-      # CPM then downloads only what's new, e.g. after a JUCE upgrade
+      # Keeps CPM's downloads (JUCE, pluginval, Catch2) between runs. The key changes with the
+      # plugin's VERSION too, so restore-keys falls back to the last cache
       - uses: actions/cache@v6
         with:
           path: .cpm-cache

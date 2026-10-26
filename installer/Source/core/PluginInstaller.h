@@ -30,7 +30,7 @@ public:
     // Replaces installed copies; asks for admin rights if needed
     InstallResult install (const std::vector<Manifest::Bundle>&) const;
 
-    // Does the copying in this process. InstallerHelper calls it once it has admin rights.
+    // Does the copying in this process, once it has admin rights
     InstallResult installHere (const std::vector<Manifest::Bundle>&) const;
 
     // Asks for admin rights if needed

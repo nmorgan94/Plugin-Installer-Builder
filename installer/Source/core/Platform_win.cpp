@@ -3,9 +3,11 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <RestartManager.h>
+#include <fcntl.h>
+#include <io.h>
 
 #include "ExePayload.h"
-#include "HelperCommand.h"
+#include "CommandLine.h"
 #include "Platform.h"
 
 #pragma comment (lib, "Rstrtmgr.lib")
@@ -177,6 +179,13 @@ namespace platform
 
         const auto error = resultFile.getFile().loadFileAsString().trim();
         return { InstallResult::Outcome::failed, error.isNotEmpty() ? error : juce::String ("The installer stopped unexpectedly.") };
+    }
+
+    // The C runtime would turn \n into \r\n
+    void useBinaryOutput()
+    {
+        _setmode (_fileno (stdout), _O_BINARY);
+        _setmode (_fileno (stderr), _O_BINARY);
     }
 
     // Asks Windows' Restart Manager

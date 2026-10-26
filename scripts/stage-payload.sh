@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 
-[ -d "$BUILD_DIR" ] || die "Mac plugin builds not found: put them in $BUILD_DIR"
+[ -d "$MAC_PLUGINS_DIR" ] || die "Mac plugin builds not found: put them in $MAC_PLUGINS_DIR"
 
 rm -rf "$PAYLOAD_DIR"
 mkdir -p "$PAYLOAD_VST3_DIR" "$PAYLOAD_COMPONENTS_DIR"
@@ -12,7 +12,7 @@ mkdir -p "$PAYLOAD_VST3_DIR" "$PAYLOAD_COMPONENTS_DIR"
 log "Preparing payload..."
 staged=0
 
-for plugin in "$BUILD_DIR"/*.vst3 "$BUILD_DIR"/*.component; do
+for plugin in "$MAC_PLUGINS_DIR"/*.vst3 "$MAC_PLUGINS_DIR"/*.component; do
     [ -d "$plugin" ] || continue
     case "$plugin" in
         *.vst3) dest="$PAYLOAD_VST3_DIR" ;;
@@ -23,7 +23,7 @@ for plugin in "$BUILD_DIR"/*.vst3 "$BUILD_DIR"/*.component; do
     staged=$((staged + 1))
 done
 
-[ "$staged" -gt 0 ] || die "No .vst3 or .component bundles found in $BUILD_DIR"
+[ "$staged" -gt 0 ] || die "No .vst3 or .component bundles found in $MAC_PLUGINS_DIR"
 
 # Here, before anything is signed, so mismatched bundles stop the build early
 read_payload_metadata

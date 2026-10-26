@@ -2,6 +2,8 @@
 
 #include "InstallResult.h"
 
+#include <optional>
+
 // Flags the Windows exe gives copies of itself
 namespace commandLine
 {
@@ -9,6 +11,6 @@ namespace commandLine
     constexpr auto uninstall = "--uninstall"; // Apps & Features' Uninstall
 }
 
-// Runs with admin rights: in InstallerHelper (Mac) or the --helper run (Windows)
-// args: install|uninstall <payload-dir> <install-root> <bundle>...
-InstallResult runHelperCommand (const juce::StringArray& args);
+// Runs the command in args[0] before any UI starts (see commands in CommandLine.cpp) and returns its
+// exit code; nothing if it isn't one, so the window opens
+std::optional<int> runCommandLine (const juce::StringArray& args);
